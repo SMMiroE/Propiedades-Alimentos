@@ -259,8 +259,8 @@ def calcular_alpha_alimento(t, composicion, Tf_input=0.0): # Tf_input con valor 
         st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
         st.stop()
 
-    # Recalcula las propiedades auxiliares (rho, Cp, k) ya que la difusividad depende de ellas
-    # y deben considerar la fracción de hielo.
+    # Recalcula las propiedades auxiliares (rho, Cp, k) ya que la difusividad depende de ellas.
+    # Estas funciones internas ya manejan la lógica de Tf_input.
     densidad = calcular_densidad_alimento(t, composicion, Tf_input)
     cp = calcular_cp_alimento(t, composicion, Tf_input)
     k = calcular_k_alimento(t, composicion, Tf_input)
@@ -633,7 +633,6 @@ with col2:
     cenizas = st.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="cenizas_main")
 
 composicion_total = agua + proteina + grasa + carbohidrato + fibra + cenizas
-# st.write(f"Suma de la composición: **{composicion_total:.1f}%**") # Esta línea se ha eliminado
 if abs(composicion_total - 100) > 0.01:
     st.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
 else:
@@ -669,6 +668,11 @@ h_escaldado = 100.0
 T0_congelacion = 20.0
 Ta_congelacion = -20.0
 h_congelacion = 15.0
+
+# **IMPORTANTE:** Inicializar temp_medio_escaldado aquí también
+# para que siempre esté definida antes de cualquier uso posterior
+temp_media_escaldado = 0.0 # Valor predeterminado que se actualizará si se elige escaldado
+
 
 # Mostrar los campos de entrada relevantes en la sección principal
 # Modificación de los títulos de las secciones de parámetros
@@ -754,8 +758,8 @@ if st.button("Realizar Cálculo"):
                     k = calcular_k_alimento(temperatura_calculo, composicion, 0.0)
                     alpha = calcular_alpha_alimento(temperatura_calculo, composicion, 0.0)
 
-                    # Formato para la difusividad térmica
-                    alpha_str = f"${alpha:.2e}$".replace("e+", r"\\times 10^").replace("e-", r"\\times 10^{-")
+                    # Formato para la difusividad térmica (VOLVER A e-X)
+                    alpha_str = f"{alpha:.2e}"
                     
                     st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
                     st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
@@ -781,8 +785,8 @@ if st.button("Realizar Cálculo"):
                         
                         Xi_fraccion = calcular_fraccion_hielo(temperatura_calculo, composicion.get('agua', 0), Tf_input)
                         
-                        # Formato para la difusividad térmica
-                        alpha_str = f"${alpha:.2e}$".replace("e+", r"\\times 10^").replace("e-", r"\\times 10^{-")
+                        # Formato para la difusividad térmica (VOLVER A e-X)
+                        alpha_str = f"{alpha:.2e}"
 
                         st.metric(label="Fracción de Hielo (Xi)", value=f"{Xi_fraccion:.3f} (kg hielo/kg alimento)")
                         st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
@@ -800,13 +804,15 @@ if st.button("Realizar Cálculo"):
                     elif T_medio_escaldado <= temp_final_escaldado:
                         st.warning("La Temperatura del Medio de Escaldado debe ser estrictamente mayor que la Temperatura Final deseada en el centro del alimento.")
                     else:
-                        temperatura_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2                                                                                                    
+                        # La variable 'temp_media_escaldado' ya está definida globalmente
+                        # y se actualiza aquí, luego se usa para calcular las propiedades.
+                        temp_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2                                                                                                    
                         
                         # No mostrar las propiedades medias aquí, pero se calculan para el tiempo
-                        densidad_escaldado = calcular_densidad_alimento(temperatura_media_escaldado, composicion, 0.0)
-                        cp_escaldado = calcular_cp_alimento(temperatura_media_escaldado, composicion, 0.0)
-                        k_escaldado = calcular_k_alimento(temperatura_media_escaldado, composicion, 0.0)
-                        alpha_escaldado = calcular_alpha_alimento(temperatura_media_escaldado, composicion, 0.0)
+                        densidad_escaldado = calcular_densidad_alimento(temp_media_escaldado, composicion, 0.0)
+                        cp_escaldado = calcular_cp_alimento(temp_media_escaldado, composicion, 0.0)
+                        k_escaldado = calcular_k_alimento(temp_media_escaldado, composicion, 0.0)
+                        alpha_escaldado = calcular_alpha_alimento(temp_media_escaldado, composicion, 0.0)
 
                         tiempo_escaldado_segundos = calcular_tiempo_escaldado(
                             temp_inicial_escaldado, temp_final_escaldado, T_medio_escaldado,
@@ -852,14 +858,14 @@ if st.button("Realizar Cálculo"):
                             max_plot_time = tiempo_escaldado_segundos * 1.2 # Extender un poco para ver la curva
                             
                             tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
-                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado,
+                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado, # <--- Corregido: T_medio_escaldado en lugar de temp_medio_escaldado
                                 geometria, dimension_a, max_tiempo_segundos=max_plot_time
                             )
 
                             if tiempos_plot is not None and temps_center_plot is not None:
                                 fig_time, ax_time = plt.subplots(figsize=(8, 5))
                                 ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Centro') # Tiempo en minutos
-                                ax_time.axhline(y=temp_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
                                 ax_time.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro objetivo ({temp_final_escaldado}°C)')
                                 ax_time.set_xlabel("Tiempo (min)")
                                 ax_time.set_ylabel("Temperatura (°C)")
