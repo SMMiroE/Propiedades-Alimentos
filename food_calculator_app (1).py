@@ -1,6 +1,6 @@
+%%writefile food_calculator_app.py
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt # Importar matplotlib
 
 # --- 1. Funciones para calcular la PROPIEDAD DE CADA COMPONENTE en función de la TEMPERATURA ---
 
@@ -308,33 +308,6 @@ def calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a):
     return tiempo_segundos / 3600 # Convertir segundos a horas
 
 
-# --- Función para dibujar la animación de congelación (placa) ---
-def dibujar_placa_congelacion(espesor, porcentaje_congelado):
-    fig, ax = plt.subplots(figsize=(6, 2)) # Ajusta tamaño para mejor visualización
-    ax.set_xlim(0, espesor)
-    ax.set_ylim(-0.5, 0.5) # Ajusta límites Y para la altura de la placa
-    ax.set_aspect('equal')
-    ax.axis('off')
-
-    # Dibujar la placa
-    rect = plt.Rectangle((0, -0.25), espesor, 0.5, facecolor='lightgray', edgecolor='black')
-    ax.add_patch(rect)
-
-    # Calcular la posición del frente de congelación desde cada lado
-    profundidad_congelada = (espesor / 2) * porcentaje_congelado
-
-    # Dibujar el área congelada (capa desde los bordes)
-    rect_izq = plt.Rectangle((0, -0.25), profundidad_congelada, 0.5, facecolor='lightblue')
-    ax.add_patch(rect_izq)
-    rect_der = plt.Rectangle((espesor - profundidad_congelada, -0.25), profundidad_congelada, 0.5, facecolor='lightblue')
-    ax.add_patch(rect_der)
-
-    ax.text(espesor / 2, 0.35, f'{int(porcentaje_congelado * 100)}% Congelado',
-            horizontalalignment='center', verticalalignment='center', fontsize=10, color='darkblue')
-
-    return fig
-
-
 # --- CONFIGURACIÓN DE LA INTERFAZ CON STREAMLIT ---
 
 st.set_page_config(
@@ -370,7 +343,7 @@ st.sidebar.write(f"Suma de la composición: **{composicion_total:.1f}%**")
 if abs(composicion_total - 100) > 0.01:
     st.sidebar.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
 
-# --- NUEVOS CAMPOS PARA TIEMPO DE CONGELACIÓN ---
+# --- CAMPOS PARA TIEMPO DE CONGELACIÓN ---
 st.sidebar.header("Datos para Tiempo de Congelación")
 
 T0 = st.sidebar.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1,
@@ -429,40 +402,8 @@ if st.sidebar.button("Calcular Propiedades y Tiempo de Congelación"):
 
                 if tiempo_congelacion_horas is not None:
                     st.metric(label="Tiempo de Congelación", value=f"{tiempo_congelacion_horas:.2f} horas")
-
-                    # --- Animación Simplificada de Congelación (Solo para Placa) ---
-                    if geometria == 'Placa':
-                        st.write("---")
-                        st.subheader("Animación de Avance del Frente de Congelación")
-                        num_frames = 20 # Número de pasos de la animación
-                        porcentajes_congelados = np.linspace(0, 1, num_frames) # De 0% a 100% congelado
-                        espesor_placa = 2 * dimension_a # La dimensión 'a' es la mitad del espesor para Plank
-
-                        tiempo_total_segundos = tiempo_congelacion_horas * 3600
-                        if tiempo_total_segundos > 0:
-                            tiempo_por_frame = tiempo_total_segundos / num_frames
-                        else:
-                            tiempo_por_frame = 0 # Evitar división por cero
-
-                        # Deslizador para controlar la animación
-                        frame = st.slider("Avance de Congelación", 0, num_frames - 1, 0,
-                                          help="Mueve el deslizador para ver el avance del frente de congelación a lo largo del tiempo.")
-                        
-                        fig_animacion = dibujar_placa_congelacion(espesor_placa, porcentajes_congelados[frame])
-                        st.pyplot(fig_animacion)
-                        st.caption(f"Tiempo aproximado: **{(frame * tiempo_por_frame / 3600):.2f} horas** de {tiempo_congelacion_horas:.2f} horas totales.")
-                    elif geometria == 'Cilindro':
-                        st.write("---")
-                        st.subheader("Animación de Avance del Frente de Congelación")
-                        st.warning("La animación para la geometría de Cilindro aún no está implementada.")
-                    elif geometria == 'Esfera':
-                        st.write("---")
-                        st.subheader("Animación de Avance del Frente de Congelación")
-                        st.warning("La animación para la geometría de Esfera aún no está implementada.")
-
                 else:
                     st.warning("No se pudo calcular el tiempo de congelación. Revise los datos de entrada para esta sección.")
-
 
             except Exception as e:
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
