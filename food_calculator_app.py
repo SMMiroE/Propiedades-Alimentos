@@ -280,7 +280,7 @@ def calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a, 
     :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
     :param dimension_a: Dimensión característica del alimento (m).
     :param Tf_input: Temperatura inicial de congelación del alimento (°C) ingresada por el usuario.
-    :return: Tiempo de congelación en horas.
+    :return: Tiempo de congelación en segundos.
     """
     # Constantes
     L0 = 333.6 * 1000 # Calor latente de fusión del hielo a 0°C en J/kg
@@ -326,7 +326,7 @@ def calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a, 
 
     tiempo_segundos = (L_efectivo / (Tf_input - Ta)) * ((P * dimension_a / h) + (R * dimension_a**2 / k_f))
 
-    return tiempo_segundos / 3600 # Convertir segundos a horas
+    return tiempo_segundos # Ahora retorna segundos, la conversión a minutos se hará en la UI
 
 
 # --- Funciones para el cálculo de tiempo de escaldado y perfil de temperatura ---
@@ -561,6 +561,41 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
 
     return posiciones_adimensionales, temperaturas_en_puntos
 
+def calcular_temperatura_centro_vs_tiempo(T_inicial_alimento, T_medio_escaldado, alpha_alimento_medio, k_alimento_medio, h_escaldado, geometria, dimension_a, max_tiempo_segundos, num_puntos_tiempo=100):
+    """
+    Calcula la temperatura del centro del alimento a lo largo del tiempo.
+    :return: Tupla de (tiempos_segundos, temperaturas_centro).
+    """
+    Lc = dimension_a
+    if k_alimento_medio == 0:
+        st.error("Conductividad térmica es cero, no se puede calcular el Número de Biot para el perfil de tiempo.")
+        return None, None
+    Bi = (h_escaldado * Lc) / k_alimento_medio
+
+    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
+
+    if A1 is None or lambda1 is None:
+        st.error(f"No se pudieron obtener coeficientes A1 y lambda1 para el perfil de tiempo. Bi={Bi:.2f}, Geometría={geometria}")
+        return None, None
+    
+    if alpha_alimento_medio == 0 or Lc == 0:
+        st.error("Difusividad térmica o longitud característica son cero, no se puede calcular el Número de Fourier para el perfil de tiempo.")
+        return None, None
+
+    tiempos_segundos = np.linspace(0, max_tiempo_segundos, num_puntos_tiempo)
+    temperaturas_centro = []
+
+    for t_sec in tiempos_segundos:
+        Fo = (alpha_alimento_medio * t_sec) / Lc**2
+        
+        # Theta_0 = (T_0 - T_inf) / (T_i - T_inf)
+        theta_0_t = A1 * np.exp(-lambda1**2 * Fo)
+        
+        T_center = T_medio_escaldado + theta_0_t * (T_inicial_alimento - T_medio_escaldado)
+        temperaturas_centro.append(T_center)
+
+    return tiempos_segundos, np.array(temperaturas_centro)
+
 
 # --- CONFIGURACIÓN DE LA INTERFAZ CON STREAMLIT ---
 
@@ -598,7 +633,7 @@ with col2:
     cenizas = st.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="cenizas_main")
 
 composicion_total = agua + proteina + grasa + carbohidrato + fibra + cenizas
-st.write(f"Suma de la composición: **{composicion_total:.1f}%**")
+# st.write(f"Suma de la composición: **{composicion_total:.1f}%**") # Esta línea se ha eliminado
 if abs(composicion_total - 100) > 0.01:
     st.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
 else:
@@ -611,10 +646,10 @@ st.header("Elige el cálculo que quieras realizar:")
 opcion_calculo = st.radio(
     " ", # Un espacio para que el label no sea visible pero el radio button funcione
     (
-        "Cálculo de propiedades a T > 0°C",
-        "Cálculo de propiedades a T < 0°C",
-        "Cálculo de tiempo de escaldado",
-        "Cálculo de tiempo de congelación"
+        "Propiedades a T > 0°C",
+        "Propiedades a T < 0°C",
+        "Tiempo de escaldado (min)",
+        "Tiempo de congelación (min)"
     ),
     key="main_opcion_calculo" # Key único para este radio button
 )
@@ -636,18 +671,27 @@ Ta_congelacion = -20.0
 h_congelacion = 15.0
 
 # Mostrar los campos de entrada relevantes en la sección principal
-st.subheader(f"Parámetros para: {opcion_calculo}")
+# Modificación de los títulos de las secciones de parámetros
+if opcion_calculo == "Propiedades a T > 0°C":
+    st.subheader("Propiedades a T > 0°C")
+elif opcion_calculo == "Propiedades a T < 0°C":
+    st.subheader("Propiedades a T < 0°C")
+elif opcion_calculo == "Tiempo de escaldado (min)":
+    st.subheader("Ingresa los parámetros")
+elif opcion_calculo == "Tiempo de congelación (min)":
+    st.subheader("Ingresa los Parámetros para el Cálculo del tiempo de congelación")
 
-if opcion_calculo == "Cálculo de propiedades a T > 0°C":
+
+if opcion_calculo == "Propiedades a T > 0°C":
     temperatura_calculo = st.number_input(
-        "Temperatura de Cálculo (°C)",
+        "Temperatura (°C)",
         min_value=0.0, max_value=150.0, value=25.0, step=0.1,
         help="Temperatura a la que se calcularán las propiedades termofísicas. Solo para temperaturas por encima de la congelación."
     )
 
-elif opcion_calculo == "Cálculo de propiedades a T < 0°C":
+elif opcion_calculo == "Propiedades a T < 0°C":
     temperatura_calculo = st.number_input(
-        "Temperatura de Cálculo (°C)",
+        "Temperatura (°C)", # Texto cambiado de "Temperatura de Cálculo" a "Temperatura"
         min_value=-50.0, max_value=0.0, value=-5.0, step=0.1,
         help="Temperatura a la que se calcularán las propiedades termofísicas, incluyendo la formación de hielo."
     )
@@ -660,19 +704,19 @@ elif opcion_calculo == "Cálculo de propiedades a T < 0°C":
         st.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
 
 
-elif opcion_calculo == "Cálculo de tiempo de escaldado":
-    temp_inicial_escaldado = st.number_input("Temperatura Inicial Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1)
-    temp_final_escaldado = st.number_input("Temperatura Final Centro (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
-    T_medio_escaldado = st.number_input("Temperatura del Medio (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
+elif opcion_calculo == "Tiempo de escaldado (min)":
+    temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1) # Texto cambiado
+    temp_final_escaldado = st.number_input("Temperatura Final en el Centro del Alimento (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1) # Texto cambiado
+    T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1) # Texto cambiado
     h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
     
     geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado_main")
     dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado_main")
 
-elif opcion_calculo == "Cálculo de tiempo de congelación":
+elif opcion_calculo == "Tiempo de congelación (min)":
     Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
     T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
-    Ta_congelacion = st.number_input("Temperatura del Medio (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
+    Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1) # Texto cambiado
     h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
     
     geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
@@ -697,8 +741,11 @@ if st.button("Realizar Cálculo"):
 
         with st.spinner("Calculando..."):
             try:
-                if opcion_calculo == "Cálculo de propiedades a T > 0°C":
-                    st.subheader("Resultados de Propiedades Termofísicas")
+                if opcion_calculo == "Propiedades a T > 0°C":
+                    st.subheader("Propiedades Termofísicas") # Título cambiado
+                    st.markdown("""
+                    <small>Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido y son aproximadas a las propiedades del alimento de composición homogénea.</small>
+                    """, unsafe_allow_html=True) # Leyenda movida y texto modificado
                     st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
                     st.markdown("---")
                     
@@ -707,15 +754,19 @@ if st.button("Realizar Cálculo"):
                     k = calcular_k_alimento(temperatura_calculo, composicion, 0.0)
                     alpha = calcular_alpha_alimento(temperatura_calculo, composicion, 0.0)
 
+                    # Formato para la difusividad térmica
+                    alpha_str = f"${alpha:.2e}$".replace("e+", r"\\times 10^").replace("e-", r"\\times 10^{-")
+                    
                     st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
                     st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
                     st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
-                    st.metric(label="Difusividad Térmica (α)", value=f"{alpha:.2e} m²/s")
-                    
-                    st.info("Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido (temperatura superior a 0°C o Tf del alimento).")
+                    st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
 
-                elif opcion_calculo == "Cálculo de propiedades a T < 0°C":
+                elif opcion_calculo == "Propiedades a T < 0°C":
                     st.subheader("Resultados de Propiedades Termofísicas (Con Hielo)")
+                    st.markdown("""
+                    <small>Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).</small>
+                    """, unsafe_allow_html=True) # Leyenda movida
                     st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
                     st.write(f"**Temperatura Inicial de Congelación (Tf):** {Tf_input}°C")
                     st.markdown("---")
@@ -729,17 +780,20 @@ if st.button("Realizar Cálculo"):
                         alpha = calcular_alpha_alimento(temperatura_calculo, composicion, Tf_input)
                         
                         Xi_fraccion = calcular_fraccion_hielo(temperatura_calculo, composicion.get('agua', 0), Tf_input)
-                        st.metric(label="Fracción de Hielo (Xi)", value=f"{Xi_fraccion:.3f} (kg hielo/kg alimento)")
+                        
+                        # Formato para la difusividad térmica
+                        alpha_str = f"${alpha:.2e}$".replace("e+", r"\\times 10^").replace("e-", r"\\times 10^{-")
 
+                        st.metric(label="Fracción de Hielo (Xi)", value=f"{Xi_fraccion:.3f} (kg hielo/kg alimento)")
                         st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
                         st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
                         st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
-                        st.metric(label="Difusividad Térmica (α)", value=f"{alpha:.2e} m²/s")
-                        st.info("Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).")
+                        st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
 
 
-                elif opcion_calculo == "Cálculo de tiempo de escaldado":
-                    st.subheader("Propiedades Termofísicas y Tiempo para Escaldado")
+                elif opcion_calculo == "Tiempo de escaldado (min)": # Opción renombrada
+                    st.subheader("Tiempo de Escaldado") # Título cambiado
+                    # Eliminadas las propiedades termofísicas medias de esta sección
 
                     if temp_inicial_escaldado >= temp_final_escaldado:
                         st.warning("La Temperatura Final deseada en el centro del alimento debe ser mayor que la Temperatura Inicial del alimento.")
@@ -747,17 +801,12 @@ if st.button("Realizar Cálculo"):
                         st.warning("La Temperatura del Medio de Escaldado debe ser estrictamente mayor que la Temperatura Final deseada en el centro del alimento.")
                     else:
                         temperatura_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2                                                                                                    
-                        st.write(f"**Temperatura Media para Cálculo de Propiedades:** {temperatura_media_escaldado:.2f}°C")
-
+                        
+                        # No mostrar las propiedades medias aquí, pero se calculan para el tiempo
                         densidad_escaldado = calcular_densidad_alimento(temperatura_media_escaldado, composicion, 0.0)
                         cp_escaldado = calcular_cp_alimento(temperatura_media_escaldado, composicion, 0.0)
                         k_escaldado = calcular_k_alimento(temperatura_media_escaldado, composicion, 0.0)
                         alpha_escaldado = calcular_alpha_alimento(temperatura_media_escaldado, composicion, 0.0)
-
-                        st.metric(label="Densidad (ρ) Media", value=f"{densidad_escaldado:.2f} kg/m³")
-                        st.metric(label="Calor Específico (Cp) Medio", value=f"{cp_escaldado:.2f} J/(kg·K)")
-                        st.metric(label="Conductividad Térmica (k) Media", value=f"{k_escaldado:.4f} W/(m·K)")
-                        st.metric(label="Difusividad Térmica (α) Media", value=f"{alpha_escaldado:.2e} m²/s")
 
                         tiempo_escaldado_segundos = calcular_tiempo_escaldado(
                             temp_inicial_escaldado, temp_final_escaldado, T_medio_escaldado,
@@ -778,8 +827,8 @@ if st.button("Realizar Cálculo"):
 
                             if posiciones is not None and temperaturas is not None:
                                 fig, ax = plt.subplots(figsize=(8, 5))
-                                ax.plot(posiciones, temperaturas, marker='o', linestyle='-', markersize=4)
-                                ax.set_xlabel("Posición Adimensional (x/L o r/R)")
+                                ax.plot(posiciones * dimension_a * 100, temperaturas, marker='o', linestyle='-', markersize=4) # Convertir a cm para el eje x
+                                ax.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
                                 ax.set_ylabel("Temperatura (°C)")
                                 ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_escaldado_minutos:.2f} min)")
                                 ax.grid(True)
@@ -787,7 +836,7 @@ if st.button("Realizar Cálculo"):
                                 max_temp_plot = max(temp_inicial_escaldado, T_medio_escaldado, np.max(temperaturas)) + 5
                                 ax.set_ylim(min_temp_plot, max_temp_plot)
                                 
-                                ax.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro objetivo ({temp_final_escaldado}°C)')
+                                ax.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro ({temp_final_escaldado}°C)') # Texto cambiado
                                 ax.legend()
                                 
                                 st.pyplot(fig)
@@ -795,16 +844,44 @@ if st.button("Realizar Cálculo"):
 
                             else:
                                 st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros de escaldado y asegúrese de que SciPy esté en requirements.txt para Cilindro/Esfera.")
+
+                            # Nuevo gráfico: Temperatura del centro vs tiempo
+                            st.subheader("Temperatura del Centro vs. Tiempo")
+                            # Se usa el mismo tiempo_escaldado_segundos como max_tiempo para la gráfica,
+                            # o un poco más para ver la tendencia si el tiempo calculado es muy corto.
+                            max_plot_time = tiempo_escaldado_segundos * 1.2 # Extender un poco para ver la curva
+                            
+                            tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
+                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado,
+                                geometria, dimension_a, max_tiempo_segundos=max_plot_time
+                            )
+
+                            if tiempos_plot is not None and temps_center_plot is not None:
+                                fig_time, ax_time = plt.subplots(figsize=(8, 5))
+                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Centro') # Tiempo en minutos
+                                ax_time.axhline(y=temp_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro objetivo ({temp_final_escaldado}°C)')
+                                ax_time.set_xlabel("Tiempo (min)")
+                                ax_time.set_ylabel("Temperatura (°C)")
+                                ax_time.set_title("Temperatura del Centro del Alimento a lo largo del Tiempo")
+                                ax_time.grid(True)
+                                ax_time.legend()
+                                st.pyplot(fig_time)
+                                plt.close(fig_time)
+                            else:
+                                st.warning("No se pudo generar el gráfico de Temperatura del centro vs. Tiempo.")
+
                         else:
                             st.warning("No se pudo calcular el tiempo de escaldado. Revise los datos de entrada para esta sección.")
                 
-                elif opcion_calculo == "Cálculo de tiempo de congelación":
+                elif opcion_calculo == "Tiempo de congelación (min)": # Opción renombrada
                     st.subheader("Tiempo de Congelación (Ecuación de Plank)")
 
-                    tiempo_congelacion_horas = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
+                    tiempo_congelacion_segundos = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
 
-                    if tiempo_congelacion_horas is not None:
-                        st.metric(label="Tiempo de Congelación", value=f"{tiempo_congelacion_horas:.2f} horas")
+                    if tiempo_congelacion_segundos is not None:
+                        tiempo_congelacion_minutos = tiempo_congelacion_segundos / 60 # Convertir a minutos
+                        st.metric(label="Tiempo de Congelación", value=f"{tiempo_congelacion_minutos:.2f} minutos") # Unidad cambiada
                     else:
                         st.warning("No se pudo calcular el tiempo de congelación. Revise los datos de entrada para esta sección.")
 
