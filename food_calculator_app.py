@@ -570,40 +570,39 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-st.title("Herramienta de Simulación de Procesos Térmicos en Alimentos")
+# Título principal de la aplicación
+st.header("Herramienta de Simulación de Procesos Térmicos en Alimentos")
 st.markdown("Dra. Silvia Marcela Miró Erdmann - Profesor Adjunto UNSL/ UNViMe")
 
-st.markdown("""
-Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
+# --- Nueva sección: Guía Rápida de Uso y Introducción (expandible) ---
+with st.expander("**Guía Rápida de Uso y Introducción**"):
+    st.markdown("""
+    Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
+    """)
+    
+    st.subheader("Cómo Utilizar la Herramienta")
+    st.markdown("""
+    Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
-Seleccione el tipo de cálculo deseado en la barra lateral para ingresar los parámetros específicos.
-""")
+    1.  **Define la Composición Proximal:**
+        * En la barra lateral izquierda, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
+        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
-# --- Nueva sección: Guía Rápida de Uso ---
-st.markdown("---")
-st.header("Guía Rápida de Uso")
-st.markdown("""
-Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
+    2.  **Selecciona el Tipo de Cálculo:**
+        * Usa las opciones de la barra lateral para elegir la simulación que deseas realizar:
+            * **"Parámetros para el cálculo de propiedades a T > 0°C":** Calcula las propiedades termofísicas (densidad, calor específico, conductividad y difusividad térmica) de tu alimento cuando se encuentra en estado líquido o por encima de su temperatura de congelación inicial.
+            * **"Parámetros para el cálculo de propiedades a T < 0°C":** Determina las propiedades termofísicas del alimento en el rango de congelación, considerando la formación de hielo. Deberás ingresar la temperatura de cálculo y la temperatura inicial de congelación del alimento.
+            * **"Parámetros para el cálculo del tiempo de escaldado":** Estima el tiempo necesario para que el centro de un alimento alcance una temperatura específica durante un proceso de escaldado, y te mostrará un perfil de temperatura. Necesitarás especificar las temperaturas inicial y final, la del medio, el coeficiente de convección (h) y la geometría/dimensión del alimento.
+            * **"Parámetros para el cálculo del tiempo de congelación":** Calcula el tiempo aproximado para congelar tu alimento utilizando la ecuación de Plank. Requiere la temperatura inicial del alimento, la temperatura del medio de congelación, el coeficiente de convección (h) y la geometría/dimensión del producto.
 
-1.  **Define la Composición Proximal:**
-    * En la barra lateral izquierda, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
-    * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+    3.  **Ingresa los Parámetros Específicos:**
+        * Una vez seleccionada la opción de cálculo, aparecerán los campos de entrada relevantes en la barra lateral. Completa todos los datos necesarios para tu simulación.
 
-2.  **Selecciona el Tipo de Cálculo:**
-    * Usa las opciones de la barra lateral para elegir la simulación que deseas realizar:
-        * **"Parámetros para el cálculo de propiedades a T > 0°C":** Calcula las propiedades termofísicas (densidad, calor específico, conductividad y difusividad térmica) de tu alimento cuando se encuentra en estado líquido o por encima de su temperatura de congelación inicial.
-        * **"Parámetros para el cálculo de propiedades a T < 0°C":** Determina las propiedades termofísicas del alimento en el rango de congelación, considerando la formación de hielo. Deberás ingresar la temperatura de cálculo y la temperatura inicial de congelación del alimento.
-        * **"Parámetros para el cálculo del tiempo de escaldado":** Estima el tiempo necesario para que el centro de un alimento alcance una temperatura específica durante un proceso de escaldado, y te mostrará un perfil de temperatura. Necesitarás especificar las temperaturas inicial y final, la del medio, el coeficiente de convección (h) y la geometría/dimensión del alimento.
-        * **"Parámetros para el cálculo del tiempo de congelación":** Calcula el tiempo aproximado para congelar tu alimento utilizando la ecuación de Plank. Requiere la temperatura inicial del alimento, la temperatura del medio de congelación, el coeficiente de convección (h) y la geometría/dimensión del producto.
-
-3.  **Ingresa los Parámetros Específicos:**
-    * Una vez seleccionada la opción de cálculo, aparecerán los campos de entrada relevantes en la barra lateral. Completa todos los datos necesarios para tu simulación.
-
-4.  **Realiza el Cálculo:**
-    * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la barra lateral.
-    * Los resultados se mostrarán en la sección principal de la aplicación, junto con gráficas si aplica (para escaldado).
-""")
-st.markdown("---")
+    4.  **Realiza el Cálculo:**
+        * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la barra lateral.
+        * Los resultados se mostrarán en la sección principal de la aplicación, junto con gráficas si aplica (para escaldado).
+    """)
+st.markdown("---") # Separador visual
 
 
 st.sidebar.header("Seleccione el Tipo de Cálculo")
@@ -836,10 +835,11 @@ if st.sidebar.button("Realizar Cálculo"):
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
                 st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
 
+# --- Referencias Bibliográficas (expandible) ---
 st.markdown("---")
-st.header("Referencias Bibliográficas")
-st.markdown("""
-* **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
-* **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
-* **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
-""")
+with st.expander("**Referencias Bibliográficas**"):
+    st.markdown("""
+    * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
+    * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
+    * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
+    """)
