@@ -570,8 +570,9 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
-# Título principal de la aplicación
-st.header("Herramienta de Simulación de Procesos Térmicos en Alimentos")
+# Título principal de la aplicación, centrado y en dos líneas
+st.markdown("<h2 style='text-align: center;'>HERRAMIENTA DE SIMULACIÓN</h2>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center;'>de Procesos Térmicos en Alimentos</h3>", unsafe_allow_html=True)
 st.markdown("Dra. Silvia Marcela Miró Erdmann - Profesor Adjunto UNSL/ UNViMe")
 
 # --- Nueva sección: Guía Rápida de Uso y Introducción (expandible) ---
@@ -632,11 +633,7 @@ if abs(composicion_total - 100) > 0.01:
 else:
     st.sidebar.success("La suma de la composición es 100%. ¡Perfecto!") # Mensaje de éxito
 
-st.sidebar.markdown(
-    """
-    <small>Asegúrate de que la suma de todos los componentes (Agua, Proteína, Grasa, Carbohidratos, Fibra y Cenizas) sea **exactamente 100%** para un cálculo preciso de las propiedades. La herramienta recalculará automáticamente la suma a medida que ajustes los valores.</small>
-    """, unsafe_allow_html=True
-)
+# Se eliminó el mensaje de ayuda extendido de aquí.
 
 st.sidebar.markdown("---") # Separador visual
 
