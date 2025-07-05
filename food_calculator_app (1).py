@@ -1,4 +1,4 @@
-%%writefile food_calculator_app.py
+%%writefile food_calculator_app(1).py
 import streamlit as st
 import numpy as np
 
