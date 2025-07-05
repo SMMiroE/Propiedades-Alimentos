@@ -570,74 +570,56 @@ st.set_page_config(
     initial_sidebar_state="auto"
 )
 
+# --- Contenido principal de la aplicación ---
+
 # Título principal de la aplicación, centrado y en dos líneas
 st.markdown("<h2 style='text-align: center;'>HERRAMIENTA DE SIMULACIÓN</h2>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center;'>de Procesos Térmicos en Alimentos</h3>", unsafe_allow_html=True)
-st.markdown("Dra. Silvia Marcela Miró Erdmann - Profesor Adjunto UNSL/ UNViMe")
-st.markdown("✉️ silvia.miro@unsl.edu.ar") # Correo de contacto
 
-# --- Sección de Guía Rápida de Uso e Introducción (en la sección principal) ---
-with st.expander("**Introducción y Guía Rápida de Uso**"):
-    st.markdown("""
-    Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
-    """)
-    
-    st.subheader("Cómo Utilizar la Herramienta")
-    st.markdown("""
-    Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
+st.markdown("""
+Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
+""")
 
-    1.  **Define la Composición Proximal:**
-        * En la barra lateral izquierda, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
-        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+st.markdown("Dra. Silvia Marcela Miró Erdmann")
+st.markdown("✉️ smmiroer@gmail.com")
 
-    2.  **Selecciona el Tipo de Cálculo:**
-        * Usa las opciones de la barra lateral para elegir la simulación que deseas realizar.
-
-    3.  **Ingresa los Parámetros Específicos (en esta sección principal):**
-        * Una vez seleccionada la opción de cálculo en la barra lateral, aparecerán los campos de entrada relevantes en esta sección principal. Completa todos los datos necesarios para tu simulación.
-
-    4.  **Realiza el Cálculo:**
-        * Haz clic en el botón **"Realizar Cálculo"** en la barra lateral.
-        * Los resultados se mostrarán en esta sección principal de la aplicación, junto con gráficas si aplica (para escaldado).
-    """)
 st.markdown("---") # Separador visual
 
-
-# --- BARRA LATERAL ---
-st.sidebar.header("Seleccione el Tipo de Cálculo")
-opcion_calculo = st.sidebar.radio(
-    "¿Qué desea calcular?",
-    (
-        "Cálculo de propiedades a T > 0°C", # Título simplificado
-        "Cálculo de propiedades a T < 0°C", # Título simplificado
-        "Cálculo de tiempo de escaldado",    # Título simplificado
-        "Cálculo de tiempo de congelación"   # Título simplificado
-    )
-)
-
-# --- Contenedores para la entrada de composición (permanecen en el sidebar) ---
-st.sidebar.subheader("Composición Proximal (%)")
-agua = st.sidebar.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
-proteina = st.sidebar.number_input("Proteína (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.1)
-grasa = st.sidebar.number_input("Grasa (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1)
-carbohidrato = st.sidebar.number_input("Carbohidratos (%)", min_value=0.0, max_value=100.0, value=4.0, step=0.1)
-fibra = st.sidebar.number_input("Fibra (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1)
-cenizas = st.sidebar.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1)
+# --- Sección de Composición Proximal (en la pantalla principal) ---
+st.header("Introduce la composición del alimento (%)")
+col1, col2 = st.columns(2) # Usamos columnas para una mejor organización de inputs
+with col1:
+    agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1, key="agua_main")
+    proteina = st.number_input("Proteína (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.1, key="proteina_main")
+    grasa = st.number_input("Grasa (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key="grasa_main")
+with col2:
+    carbohidrato = st.number_input("Carbohidratos (%)", min_value=0.0, max_value=100.0, value=4.0, step=0.1, key="carbo_main")
+    fibra = st.number_input("Fibra (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="fibra_main")
+    cenizas = st.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="cenizas_main")
 
 composicion_total = agua + proteina + grasa + carbohidrato + fibra + cenizas
-st.sidebar.write(f"Suma de la composición: **{composicion_total:.1f}%**")
+st.write(f"Suma de la composición: **{composicion_total:.1f}%**")
 if abs(composicion_total - 100) > 0.01:
-    st.sidebar.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
+    st.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
 else:
-    st.sidebar.success("La suma de la composición es 100%. ¡Perfecto!") # Mensaje de éxito
+    st.success("La suma de la composición es 100%. ¡Perfecto!")
 
-st.sidebar.markdown("---") # Separador visual
+st.markdown("---") # Separador visual
 
-# Botón de cálculo (permanece en el sidebar)
-if st.sidebar.button("Realizar Cálculo"):
-    # Código de cálculo se mantiene aquí
-    # ... (resto del bloque del botón "Realizar Cálculo") ...
-    pass # Este 'pass' es solo un marcador de posición temporal, el código real del cálculo se agrega más abajo
+# --- Sección de Selección de Cálculo (en la pantalla principal) ---
+st.header("Elige el cálculo que quieras realizar:")
+opcion_calculo = st.radio(
+    " ", # Un espacio para que el label no sea visible pero el radio button funcione
+    (
+        "Cálculo de propiedades a T > 0°C",
+        "Cálculo de propiedades a T < 0°C",
+        "Cálculo de tiempo de escaldado",
+        "Cálculo de tiempo de congelación"
+    ),
+    key="main_opcion_calculo" # Key único para este radio button
+)
+
+st.markdown("---") # Separador visual
 
 # --- Contenedores para entradas dinámicas (AHORA EN LA COLUMNA PRINCIPAL) ---
 # Default values for inputs that might not be shown, initialized here for scope
@@ -654,7 +636,7 @@ Ta_congelacion = -20.0
 h_congelacion = 15.0
 
 # Mostrar los campos de entrada relevantes en la sección principal
-st.header(opcion_calculo) # Título de la sección de parámetros elegida
+st.subheader(f"Parámetros para: {opcion_calculo}")
 
 if opcion_calculo == "Cálculo de propiedades a T > 0°C":
     temperatura_calculo = st.number_input(
@@ -684,8 +666,8 @@ elif opcion_calculo == "Cálculo de tiempo de escaldado":
     T_medio_escaldado = st.number_input("Temperatura del Medio (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
     h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
     
-    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado")
-    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado")
+    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado_main")
+    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado_main")
 
 elif opcion_calculo == "Cálculo de tiempo de congelación":
     Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
@@ -693,14 +675,14 @@ elif opcion_calculo == "Cálculo de tiempo de congelación":
     Ta_congelacion = st.number_input("Temperatura del Medio (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
     h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
     
-    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion")
-    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion")
+    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
+    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion_main")
 
 
-# --- Bloque de cálculo real (que se ejecuta al presionar el botón) ---
-# Este bloque ahora se encuentra lógicamente después de que todas las variables estén definidas,
-# ya sea por valores predeterminados o por la entrada del usuario en la sección principal.
-if st.sidebar.button("Realizar Cálculo", key="main_calculate_button"):
+st.markdown("---") # Separador visual
+
+# --- Botón de cálculo (en la pantalla principal) ---
+if st.button("Realizar Cálculo"):
     if abs(composicion_total - 100) > 0.01:
         st.error("Por favor, corrija la composición antes de calcular (debe sumar 100%).")
     else:
@@ -830,9 +812,40 @@ if st.sidebar.button("Realizar Cálculo", key="main_calculate_button"):
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
                 st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
 
-# --- Referencias Bibliográficas (en la sección principal) ---
-st.markdown("---")
-with st.expander("**Referencias Bibliográficas**"):
+# --- Contenido de la barra lateral ---
+st.sidebar.header("Información Adicional")
+
+opcion_info_sidebar = st.sidebar.radio(
+    "Selecciona una sección:",
+    ("Ninguna", "Guía Rápida de Uso", "Referencias Bibliográficas"),
+    key="sidebar_info_selector"
+)
+
+# --- Mostrar contenido dinámico basado en la selección de la barra lateral ---
+if opcion_info_sidebar == "Guía Rápida de Uso":
+    st.markdown("---")
+    st.header("Guía Rápida de Uso")
+    st.markdown("""
+    Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
+
+    1.  **Define la Composición Proximal:**
+        * En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
+        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+
+    2.  **Selecciona el Tipo de Cálculo:**
+        * En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.
+
+    3.  **Ingresa los Parámetros Específicos:**
+        * Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.
+
+    4.  **Realiza el Cálculo:**
+        * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la pantalla principal.
+        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).
+    """)
+
+elif opcion_info_sidebar == "Referencias Bibliográficas":
+    st.markdown("---")
+    st.header("Referencias Bibliográficas")
     st.markdown("""
     * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
     * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
