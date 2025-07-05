@@ -607,21 +607,18 @@ st.set_page_config(
 
 # --- Contenido principal de la aplicación ---
 
-# Título principal de la aplicación, centrado y en dos líneas
-st.markdown("<h2 style='text-align: center;'>HERRAMIENTA DE SIMULACIÓN</h2>", unsafe_allow_html=True)
-st.markdown("<h3 style='text-align: center;'>de Procesos Térmicos en Alimentos</h3>", unsafe_allow_html=True)
+# Título principal de la aplicación, centrado
+st.markdown("<h3 style='text-align: center;'>PROCESOS TÉRMICOS EN ALIMENTOS</h3>", unsafe_allow_html=True) # h3 para reducir tamaño
+st.markdown("<p style='text-align: center; font-size: 1em;'>Herramienta de simulación</p>", unsafe_allow_html=True) # p con font-size reducido
 
 st.markdown("""
-Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
-""")
-
-st.markdown("Dra. Silvia Marcela Miró Erdmann")
-st.markdown("✉️ smmiroer@gmail.com")
+<p style='font-size: 0.85em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>escaldado</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
+""", unsafe_allow_html=True)
 
 st.markdown("---") # Separador visual
 
 # --- Sección de Composición Proximal (en la pantalla principal) ---
-st.header("Introduce la composición del alimento (%)")
+st.markdown("<h5 style='text-align: left;'>Introduce la composición del alimento (%)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 col1, col2 = st.columns(2) # Usamos columnas para una mejor organización de inputs
 with col1:
     agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1, key="agua_main")
@@ -641,7 +638,7 @@ else:
 st.markdown("---") # Separador visual
 
 # --- Sección de Selección de Cálculo (en la pantalla principal) ---
-st.header("Elige el cálculo que quieras realizar:")
+st.markdown("<h5 style='text-align: left;'>Elige el cálculo que quieras realizar:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 opcion_calculo = st.radio(
     " ", # Un espacio para que el label no sea visible pero el radio button funcione
     (
@@ -677,13 +674,13 @@ temp_media_escaldado = 0.0 # Valor predeterminado que se actualizará si se elig
 # Mostrar los campos de entrada relevantes en la sección principal
 # Modificación de los títulos de las secciones de parámetros
 if opcion_calculo == "Propiedades a T > 0°C":
-    st.subheader("Propiedades a T > 0°C")
+    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 elif opcion_calculo == "Propiedades a T < 0°C":
-    st.subheader("Propiedades a T < 0°C")
+    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 elif opcion_calculo == "Tiempo de escaldado (min)":
-    st.subheader("Ingresa los parámetros")
+    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 elif opcion_calculo == "Tiempo de congelación (min)":
-    st.subheader("Ingresa los Parámetros para el Cálculo del tiempo de congelación")
+    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 
 
 if opcion_calculo == "Propiedades a T > 0°C":
@@ -746,7 +743,7 @@ if st.button("Realizar Cálculo"):
         with st.spinner("Calculando..."):
             try:
                 if opcion_calculo == "Propiedades a T > 0°C":
-                    st.subheader("Propiedades Termofísicas") # Título cambiado
+                    st.markdown("<h5 style='text-align: left;'>Propiedades Termofísicas Calculadas</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
                     st.markdown("""
                     <small>Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido y son aproximadas a las propiedades del alimento de composición homogénea.</small>
                     """, unsafe_allow_html=True) # Leyenda movida y texto modificado
@@ -761,13 +758,14 @@ if st.button("Realizar Cálculo"):
                     # Formato para la difusividad térmica (VOLVER A e-X)
                     alpha_str = f"{alpha:.2e}"
                     
+                    # Usar st.metric con un estilo para el valor para reducir el tamaño
                     st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
                     st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
                     st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
                     st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
 
                 elif opcion_calculo == "Propiedades a T < 0°C":
-                    st.subheader("Resultados de Propiedades Termofísicas (Con Hielo)")
+                    st.markdown("<h5 style='text-align: left;'>Resultados de Propiedades Termofísicas (Con Hielo)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
                     st.markdown("""
                     <small>Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).</small>
                     """, unsafe_allow_html=True) # Leyenda movida
@@ -796,7 +794,7 @@ if st.button("Realizar Cálculo"):
 
 
                 elif opcion_calculo == "Tiempo de escaldado (min)": # Opción renombrada
-                    st.subheader("Tiempo de Escaldado") # Título cambiado
+                    st.markdown("<h5 style='text-align: left;'>Tiempo de Escaldado Calculado</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
                     # Eliminadas las propiedades termofísicas medias de esta sección
 
                     if temp_inicial_escaldado >= temp_final_escaldado:
@@ -824,7 +822,7 @@ if st.button("Realizar Cálculo"):
                             st.metric(label="Tiempo de Escaldado (Centro)", value=f"{tiempo_escaldado_minutos:.2f} minutos")
 
                             st.write("---")
-                            st.subheader("Perfil de Temperatura al Final del Escaldado")
+                            st.markdown("<h5 style='text-align: left;'>Perfil de Temperatura al Final del Escaldado</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 
                             posiciones, temperaturas = calcular_perfil_temperatura(
                                 tiempo_escaldado_segundos, temp_inicial_escaldado, T_medio_escaldado,
@@ -852,7 +850,7 @@ if st.button("Realizar Cálculo"):
                                 st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros de escaldado y asegúrese de que SciPy esté en requirements.txt para Cilindro/Esfera.")
 
                             # Nuevo gráfico: Temperatura del centro vs tiempo
-                            st.subheader("Temperatura del Centro vs. Tiempo")
+                            st.markdown("<h5 style='text-align: left;'>Temperatura del Centro vs. Tiempo</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
                             
                             # MODIFICACIÓN CLAVE AQUÍ:
                             # Se usa el tiempo_escaldado_segundos calculado como el tiempo máximo para la gráfica.
@@ -882,7 +880,7 @@ if st.button("Realizar Cálculo"):
                             st.warning("No se pudo calcular el tiempo de escaldado. Revise los datos de entrada para esta sección.")
                 
                 elif opcion_calculo == "Tiempo de congelación (min)": # Opción renombrada
-                    st.subheader("Tiempo de Congelación (Ecuación de Plank)")
+                    st.markdown("<h5 style='text-align: left;'>Tiempo de Congelación (Ecuación de Plank)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 
                     tiempo_congelacion_segundos = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
 
@@ -900,56 +898,67 @@ if st.button("Realizar Cálculo"):
 st.sidebar.header("Información de la Aplicación")
 st.sidebar.markdown("""
 Para más detalles sobre la aplicación, su uso y referencias, consulte las pestañas en la sección "Información Adicional" de la pantalla principal.
-""")
+""", unsafe_allow_html=True)
 
-# --- Sección de Información Adicional (AHORA EN LA PANTALLA PRINCIPAL CON PESTAÑAS) ---
+# **AGREGAMOS TU INFORMACIÓN DE CONTACTO AQUÍ, CON UN ESTILO MÁS PEQUEÑO**
+st.sidebar.markdown("<p style='font-size: 0.8em;'>Dra. Silvia Marcela Miró Erdmann</p>", unsafe_allow_html=True)
+st.sidebar.markdown("<p style='font-size: 0.8em;'>✉️ smmiroer@gmail.com</p>", unsafe_allow_html=True)
+
+# --- Sección de Información Adicional (EN LA PANTALLA PRINCIPAL CON PESTAÑAS) ---
 st.markdown("---") # Separador visual
-st.header("Información Adicional")
+st.markdown("<h5 style='text-align: left;'>Información Adicional</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
 
 # Usar st.tabs para organizar el contenido
 tab1, tab2, tab3 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos"])
 
 with tab1:
-    st.subheader("Guía Rápida de Uso")
+    st.markdown("<h6 style='text-align: left;'>Guía Rápida de Uso</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
     st.markdown("""
-    Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
+    <p style='font-size: 0.8em;'>Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:</p>
 
-    1.  **Define la Composición Proximal:**
-        * En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
-        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+    <p style='font-size: 0.8em;'>1.  <b>Define la Composición Proximal:</b></p>
+        <ul style='font-size: 0.8em;'>
+            <li>En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de <b>Agua, Proteína, Grasa, Carbohidratos, Fibra</b> y <b>Cenizas</b> de tu alimento.</li>
+            <li>Asegúrate de que la suma total sea <b>100%</b>. La aplicación te indicará si necesitas ajustar los valores.</li>
+        </ul>
 
-    2.  **Selecciona el Tipo de Cálculo:**
-        * En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.
+    <p style='font-size: 0.8em;'>2.  <b>Selecciona el Tipo de Cálculo:</b></p>
+        <ul style='font-size: 0.8em;'>
+            <li>En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.</li>
+        </ul>
 
-    3.  **Ingresa los Parámetros Específicos:**
-        * Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.
+    <p style='font-size: 0.8em;'>3.  <b>Ingresa los Parámetros Específicos:</b></p>
+        <ul style='font-size: 0.8em;'>
+            <li>Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.</li>
+        </ul>
 
-    4.  **Realiza el Cálculo:**
-        * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la pantalla principal.
-        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).
-    """)
+    <p style='font-size: 0.8em;'>4.  <b>Realiza el Cálculo:</b></p>
+        <ul style='font-size: 0.8em;'>
+            <li>Haz clic en el botón <b>"Realizar Cálculo"</b> en la parte inferior de la pantalla principal.</li>
+            <li>Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).</li>
+        </ul>
+    """, unsafe_allow_html=True)
 
 with tab2:
-    st.subheader("Referencias Bibliográficas")
+    st.markdown("<h6 style='text-align: left;'>Referencias Bibliográficas</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
     st.markdown("""
-    * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
-    * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
-    * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
-    """)
+    <ul style='font-size: 0.8em;'>
+        <li><b>Choi, Y., & Okos, M. R. (1986).</b> <i>Thermal Properties of Foods</i>. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.</li>
+        <li><b>Singh, R. P., & Heldman, D. D. (2009).</b> <i>Introducción a la Ingeniería de los Alimentos</i> (2da ed.). Acribia.</li>
+        <li><b>Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).</b> <i>Fundamentals of Heat and Mass Transfer</i> (6th ed.). John Wiley & Sons.</li>
+    </ul>
+    """, unsafe_allow_html=True)
 
 with tab3:
-    st.subheader("Bases de Datos de Composición de Alimentos")
+    st.markdown("<h6 style='text-align: left;'>Bases de Datos de Composición de Alimentos</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
     st.markdown("""
-    Aquí puedes encontrar enlaces a bases de datos confiables para consultar la composición proximal de diversos alimentos:
+    <p style='font-size: 0.8em;'>Aquí puedes encontrar enlaces a bases de datos confiables para consultar la composición proximal de diversos alimentos:</p>
 
-    * **USDA FoodData Central (Estados Unidos):**
-        [https://fdc.nal.usda.gov/](https://fdc.nal.usda.gov/)
-    * **BEDCA - Base de Datos Española de Composición de Alimentos (España):**
-        [http://www.bedca.net/](http://www.bedca.net/)
-    * **Tabla de Composición de Alimentos del INTA (Argentina):**
-        [https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos](https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos)
-    * **FAO/INFOODS (Internacional):**
-        [https://www.fao.org/infoods/infoods/es/](https://www.fao.org/infoods/infoods/es/)
-    * **Food Composition Databases (EUFIC - Europa):**
-        [https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)
-    """)
+    <ul style='font-size: 0.8em;'>
+        <li><b>USDA FoodData Central (Estados Unidos):</b><br>[https://fdc.nal.usda.gov/](https://fdc.nal.usda.gov/)</li>
+        <li><b>BEDCA - Base de Datos Española de Composición de Alimentos (España):</b><br>[http://www.bedca.net/](http://www.bedca.net/)</li>
+        <li><b>Tabla de Composición de Alimentos del INTA (Argentina):</b><br>[https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos](https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos)</li>
+        <li><b>FAO/INFOODS (Internacional):</b><br>[https://www.fao.org/infoods/infoods/es/](https://www.fao.org/infoods/infoods/es/)</li>
+        <li><b>Food Composition Databases (EUFIC - Europa):</b><br>[https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)</li>
+    </ul>
+    """, unsafe_allow_html=True)
