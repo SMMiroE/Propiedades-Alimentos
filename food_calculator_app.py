@@ -853,12 +853,13 @@ if st.button("Realizar Cálculo"):
 
                             # Nuevo gráfico: Temperatura del centro vs tiempo
                             st.subheader("Temperatura del Centro vs. Tiempo")
-                            # Se usa el mismo tiempo_escaldado_segundos como max_tiempo para la gráfica,
-                            # o un poco más para ver la tendencia si el tiempo calculado es muy corto.
-                            max_plot_time = tiempo_escaldado_segundos * 1.2 # Extender un poco para ver la curva
+                            
+                            # MODIFICACIÓN CLAVE AQUÍ:
+                            # Se usa el tiempo_escaldado_segundos calculado como el tiempo máximo para la gráfica.
+                            max_plot_time = tiempo_escaldado_segundos 
                             
                             tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
-                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado, # <--- Corregido: T_medio_escaldado en lugar de temp_medio_escaldado
+                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado,
                                 geometria, dimension_a, max_tiempo_segundos=max_plot_time
                             )
 
@@ -895,19 +896,21 @@ if st.button("Realizar Cálculo"):
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
                 st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
 
-# --- Contenido de la barra lateral ---
-st.sidebar.header("Información Adicional")
+# --- Contenido de la barra lateral (SIMPLIFICADA) ---
+st.sidebar.header("Información de la Aplicación")
+st.sidebar.markdown("""
+Para más detalles sobre la aplicación, su uso y referencias, consulte las pestañas en la sección "Información Adicional" de la pantalla principal.
+""")
 
-opcion_info_sidebar = st.sidebar.radio(
-    "Selecciona una sección:",
-    ("Ninguna", "Guía Rápida de Uso", "Referencias Bibliográficas"),
-    key="sidebar_info_selector"
-)
+# --- Sección de Información Adicional (AHORA EN LA PANTALLA PRINCIPAL CON PESTAÑAS) ---
+st.markdown("---") # Separador visual
+st.header("Información Adicional")
 
-# --- Mostrar contenido dinámico basado en la selección de la barra lateral ---
-if opcion_info_sidebar == "Guía Rápida de Uso":
-    st.markdown("---")
-    st.header("Guía Rápida de Uso")
+# Usar st.tabs para organizar el contenido
+tab1, tab2, tab3 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos"])
+
+with tab1:
+    st.subheader("Guía Rápida de Uso")
     st.markdown("""
     Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
@@ -926,11 +929,27 @@ if opcion_info_sidebar == "Guía Rápida de Uso":
         * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).
     """)
 
-elif opcion_info_sidebar == "Referencias Bibliográficas":
-    st.markdown("---")
-    st.header("Referencias Bibliográficas")
+with tab2:
+    st.subheader("Referencias Bibliográficas")
     st.markdown("""
     * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
     * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
     * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
+    """)
+
+with tab3:
+    st.subheader("Bases de Datos de Composición de Alimentos")
+    st.markdown("""
+    Aquí puedes encontrar enlaces a bases de datos confiables para consultar la composición proximal de diversos alimentos:
+
+    * **USDA FoodData Central (Estados Unidos):**
+        [https://fdc.nal.usda.gov/](https://fdc.nal.usda.gov/)
+    * **BEDCA - Base de Datos Española de Composición de Alimentos (España):**
+        [http://www.bedca.net/](http://www.bedca.net/)
+    * **Tabla de Composición de Alimentos del INTA (Argentina):**
+        [https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos](https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos)
+    * **FAO/INFOODS (Internacional):**
+        [https://www.fao.org/infoods/infoods/es/](https://www.fao.org/infoods/infoods/es/)
+    * **Food Composition Databases (EUFIC - Europa):**
+        [https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)
     """)
