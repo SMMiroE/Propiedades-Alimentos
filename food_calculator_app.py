@@ -482,7 +482,7 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
     :param T_medio_escaldado: Temperatura del medio de calentamiento (°C).
     :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
     :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m²·K)).
+    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m·K)).
     :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
     :param dimension_a: Dimensión característica del alimento (m).
     :param num_puntos: Número de puntos para la gráfica del perfil.
@@ -511,10 +511,10 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
     posiciones_adimensionales = np.linspace(0, 1, num_puntos)
     term_posicion = None # Inicializar para evitar errores de referencia
 
-    if geometry == 'Placa':
+    if geometria == 'Placa':
         term_posicion = np.cos(lambda1 * posiciones_adimensionales) / np.cos(lambda1)
         
-    elif geometry == 'Cilindro':
+    elif geometria == 'Cilindro':
         try:
             # j0 es la función de Bessel de primera clase de orden cero
             term_posicion = j0(lambda1 * posiciones_adimensionales) / j0(lambda1)
@@ -522,7 +522,7 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
             st.error(f"Error al calcular perfil para Cilindro (J0): {e}. Asegúrese de que 'scipy' esté en requirements.txt.")
             return None, None
 
-    elif geometry == 'Esfera':
+    elif geometria == 'Esfera':
         try:
             # La expresión para Esfera es (sin(lambda*pos))/(lambda*pos) / (sin(lambda)/lambda)
             # Primero calculamos el numerador (sin(lambda*r/R) / (lambda*r/R))
@@ -574,9 +574,10 @@ st.set_page_config(
 st.markdown("<h2 style='text-align: center;'>HERRAMIENTA DE SIMULACIÓN</h2>", unsafe_allow_html=True)
 st.markdown("<h3 style='text-align: center;'>de Procesos Térmicos en Alimentos</h3>", unsafe_allow_html=True)
 st.markdown("Dra. Silvia Marcela Miró Erdmann - Profesor Adjunto UNSL/ UNViMe")
+st.markdown("✉️ silvia.miro@unsl.edu.ar") # Correo de contacto
 
-# --- Nueva sección: Guía Rápida de Uso y Introducción (expandible) ---
-with st.expander("**Guía Rápida de Uso y Introducción**"):
+# --- Sección de Guía Rápida de Uso e Introducción (en la sección principal) ---
+with st.expander("**Introducción y Guía Rápida de Uso**"):
     st.markdown("""
     Esta aplicación interactiva permite calcular **propiedades termofísicas de alimentos** (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de **Choi y Okos (1986)**. Además, facilita la estimación del **tiempo de congelación** mediante la ecuación de Plank y la simulación de procesos de **escaldado**, incluyendo el cálculo del tiempo necesario y la visualización del **perfil de temperatura** dentro del alimento, utilizando la solución del primer término de la serie de Fourier.
     """)
@@ -590,34 +591,31 @@ with st.expander("**Guía Rápida de Uso y Introducción**"):
         * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
     2.  **Selecciona el Tipo de Cálculo:**
-        * Usa las opciones de la barra lateral para elegir la simulación que deseas realizar:
-            * **"Parámetros para el cálculo de propiedades a T > 0°C":** Calcula las propiedades termofísicas (densidad, calor específico, conductividad y difusividad térmica) de tu alimento cuando se encuentra en estado líquido o por encima de su temperatura de congelación inicial.
-            * **"Parámetros para el cálculo de propiedades a T < 0°C":** Determina las propiedades termofísicas del alimento en el rango de congelación, considerando la formación de hielo. Deberás ingresar la temperatura de cálculo y la temperatura inicial de congelación del alimento.
-            * **"Parámetros para el cálculo del tiempo de escaldado":** Estima el tiempo necesario para que el centro de un alimento alcance una temperatura específica durante un proceso de escaldado, y te mostrará un perfil de temperatura. Necesitarás especificar las temperaturas inicial y final, la del medio, el coeficiente de convección (h) y la geometría/dimensión del alimento.
-            * **"Parámetros para el cálculo del tiempo de congelación":** Calcula el tiempo aproximado para congelar tu alimento utilizando la ecuación de Plank. Requiere la temperatura inicial del alimento, la temperatura del medio de congelación, el coeficiente de convección (h) y la geometría/dimensión del producto.
+        * Usa las opciones de la barra lateral para elegir la simulación que deseas realizar.
 
-    3.  **Ingresa los Parámetros Específicos:**
-        * Una vez seleccionada la opción de cálculo, aparecerán los campos de entrada relevantes en la barra lateral. Completa todos los datos necesarios para tu simulación.
+    3.  **Ingresa los Parámetros Específicos (en esta sección principal):**
+        * Una vez seleccionada la opción de cálculo en la barra lateral, aparecerán los campos de entrada relevantes en esta sección principal. Completa todos los datos necesarios para tu simulación.
 
     4.  **Realiza el Cálculo:**
-        * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la barra lateral.
-        * Los resultados se mostrarán en la sección principal de la aplicación, junto con gráficas si aplica (para escaldado).
+        * Haz clic en el botón **"Realizar Cálculo"** en la barra lateral.
+        * Los resultados se mostrarán en esta sección principal de la aplicación, junto con gráficas si aplica (para escaldado).
     """)
 st.markdown("---") # Separador visual
 
 
+# --- BARRA LATERAL ---
 st.sidebar.header("Seleccione el Tipo de Cálculo")
 opcion_calculo = st.sidebar.radio(
     "¿Qué desea calcular?",
     (
-        "Parámetros para el cálculo de propiedades a T > 0°C",
-        "Parámetros para el cálculo de propiedades a T < 0°C", # Nueva opción
-        "Parámetros para el cálculo del tiempo de escaldado",
-        "Parámetros para el cálculo del tiempo de congelación"
+        "Cálculo de propiedades a T > 0°C", # Título simplificado
+        "Cálculo de propiedades a T < 0°C", # Título simplificado
+        "Cálculo de tiempo de escaldado",    # Título simplificado
+        "Cálculo de tiempo de congelación"   # Título simplificado
     )
 )
 
-# --- Contenedores para la entrada de composición ---
+# --- Contenedores para la entrada de composición (permanecen en el sidebar) ---
 st.sidebar.subheader("Composición Proximal (%)")
 agua = st.sidebar.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
 proteina = st.sidebar.number_input("Proteína (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.1)
@@ -633,67 +631,76 @@ if abs(composicion_total - 100) > 0.01:
 else:
     st.sidebar.success("La suma de la composición es 100%. ¡Perfecto!") # Mensaje de éxito
 
-# Se eliminó el mensaje de ayuda extendido de aquí.
-
 st.sidebar.markdown("---") # Separador visual
 
-# --- Contenedores para entradas dinámicas según la opción seleccionada ---
-# Default values for inputs that might not be shown
+# Botón de cálculo (permanece en el sidebar)
+if st.sidebar.button("Realizar Cálculo"):
+    # Código de cálculo se mantiene aquí
+    # ... (resto del bloque del botón "Realizar Cálculo") ...
+    pass # Este 'pass' es solo un marcador de posición temporal, el código real del cálculo se agrega más abajo
+
+# --- Contenedores para entradas dinámicas (AHORA EN LA COLUMNA PRINCIPAL) ---
+# Default values for inputs that might not be shown, initialized here for scope
 temperatura_calculo = 25.0
 Tf_input = -1.8 # Initial freezing point
-
 geometria = 'Placa'
 dimension_a = 0.05
+temp_inicial_escaldado = 20.0
+temp_final_escaldado = 85.0
+T_medio_escaldado = 95.0
+h_escaldado = 100.0
+T0_congelacion = 20.0
+Ta_congelacion = -20.0
+h_congelacion = 15.0
 
-if opcion_calculo == "Parámetros para el cálculo de propiedades a T > 0°C":
-    st.sidebar.header(opcion_calculo) # Use the selected option as the header
-    temperatura_calculo = st.sidebar.number_input(
+# Mostrar los campos de entrada relevantes en la sección principal
+st.header(opcion_calculo) # Título de la sección de parámetros elegida
+
+if opcion_calculo == "Cálculo de propiedades a T > 0°C":
+    temperatura_calculo = st.number_input(
         "Temperatura de Cálculo (°C)",
         min_value=0.0, max_value=150.0, value=25.0, step=0.1,
         help="Temperatura a la que se calcularán las propiedades termofísicas. Solo para temperaturas por encima de la congelación."
     )
-    # No need for Tf_input here, as calculations assume T > 0 and no freezing.
 
-elif opcion_calculo == "Parámetros para el cálculo de propiedades a T < 0°C": # New section for T < 0 properties
-    st.sidebar.header(opcion_calculo)
-    temperatura_calculo = st.sidebar.number_input(
+elif opcion_calculo == "Cálculo de propiedades a T < 0°C":
+    temperatura_calculo = st.number_input(
         "Temperatura de Cálculo (°C)",
         min_value=-50.0, max_value=0.0, value=-5.0, step=0.1,
         help="Temperatura a la que se calcularán las propiedades termofísicas, incluyendo la formación de hielo."
     )
-    Tf_input = st.sidebar.number_input(
+    Tf_input = st.number_input(
         "Temperatura Inicial de Congelación (Tf) [°C]",
         min_value=-50.0, max_value=0.0, value=-1.8, step=0.1,
         help="Temperatura a la que el agua en el alimento comienza a congelarse."
     )
     if temperatura_calculo >= Tf_input:
-        st.sidebar.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
+        st.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
 
 
-elif opcion_calculo == "Parámetros para el cálculo del tiempo de escaldado":
-    st.sidebar.header(opcion_calculo) # Use the selected option as the header
-    temp_inicial_escaldado = st.sidebar.number_input("Temperatura Inicial Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1)
-    temp_final_escaldado = st.sidebar.number_input("Temperatura Final Centro (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
-    T_medio_escaldado = st.sidebar.number_input("Temperatura del Medio (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
-    h_escaldado = st.sidebar.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
+elif opcion_calculo == "Cálculo de tiempo de escaldado":
+    temp_inicial_escaldado = st.number_input("Temperatura Inicial Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1)
+    temp_final_escaldado = st.number_input("Temperatura Final Centro (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
+    T_medio_escaldado = st.number_input("Temperatura del Medio (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
+    h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
     
-    geometria = st.sidebar.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado")
-    dimension_a = st.sidebar.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado")
+    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado")
+    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado")
 
-elif opcion_calculo == "Parámetros para el cálculo del tiempo de congelación":
-    st.sidebar.header(opcion_calculo) # Use the selected option as the header
-    Tf_input = st.sidebar.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
-    T0 = st.sidebar.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
-    Ta = st.sidebar.number_input("Temperatura del Medio (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
-    h = st.sidebar.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
+elif opcion_calculo == "Cálculo de tiempo de congelación":
+    Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
+    T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
+    Ta_congelacion = st.number_input("Temperatura del Medio (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
+    h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
     
-    geometria = st.sidebar.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion")
-    dimension_a = st.sidebar.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion")
+    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion")
+    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion")
 
 
-# Botón de cálculo
-st.sidebar.markdown("---")
-if st.sidebar.button("Realizar Cálculo"):
+# --- Bloque de cálculo real (que se ejecuta al presionar el botón) ---
+# Este bloque ahora se encuentra lógicamente después de que todas las variables estén definidas,
+# ya sea por valores predeterminados o por la entrada del usuario en la sección principal.
+if st.sidebar.button("Realizar Cálculo", key="main_calculate_button"):
     if abs(composicion_total - 100) > 0.01:
         st.error("Por favor, corrija la composición antes de calcular (debe sumar 100%).")
     else:
@@ -708,13 +715,11 @@ if st.sidebar.button("Realizar Cálculo"):
 
         with st.spinner("Calculando..."):
             try:
-                # --- Lógica de cálculo basada en la opción seleccionada ---
-                if opcion_calculo == "Parámetros para el cálculo de propiedades a T > 0°C":
+                if opcion_calculo == "Cálculo de propiedades a T > 0°C":
                     st.subheader("Resultados de Propiedades Termofísicas")
                     st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
                     st.markdown("---")
                     
-                    # Para T > 0, usamos Tf_input=0.0 para asegurar que no se considere hielo
                     densidad = calcular_densidad_alimento(temperatura_calculo, composicion, 0.0) 
                     cp = calcular_cp_alimento(temperatura_calculo, composicion, 0.0)
                     k = calcular_k_alimento(temperatura_calculo, composicion, 0.0)
@@ -727,7 +732,7 @@ if st.sidebar.button("Realizar Cálculo"):
                     
                     st.info("Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido (temperatura superior a 0°C o Tf del alimento).")
 
-                elif opcion_calculo == "Parámetros para el cálculo de propiedades a T < 0°C": # New calculation logic for T < 0
+                elif opcion_calculo == "Cálculo de propiedades a T < 0°C":
                     st.subheader("Resultados de Propiedades Termofísicas (Con Hielo)")
                     st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
                     st.write(f"**Temperatura Inicial de Congelación (Tf):** {Tf_input}°C")
@@ -741,7 +746,6 @@ if st.sidebar.button("Realizar Cálculo"):
                         k = calcular_k_alimento(temperatura_calculo, composicion, Tf_input)
                         alpha = calcular_alpha_alimento(temperatura_calculo, composicion, Tf_input)
                         
-                        # Calculate and display fraction of ice
                         Xi_fraccion = calcular_fraccion_hielo(temperatura_calculo, composicion.get('agua', 0), Tf_input)
                         st.metric(label="Fracción de Hielo (Xi)", value=f"{Xi_fraccion:.3f} (kg hielo/kg alimento)")
 
@@ -752,7 +756,7 @@ if st.sidebar.button("Realizar Cálculo"):
                         st.info("Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).")
 
 
-                elif opcion_calculo == "Parámetros para el cálculo del tiempo de escaldado":
+                elif opcion_calculo == "Cálculo de tiempo de escaldado":
                     st.subheader("Propiedades Termofísicas y Tiempo para Escaldado")
 
                     if temp_inicial_escaldado >= temp_final_escaldado:
@@ -760,11 +764,9 @@ if st.sidebar.button("Realizar Cálculo"):
                     elif T_medio_escaldado <= temp_final_escaldado:
                         st.warning("La Temperatura del Medio de Escaldado debe ser estrictamente mayor que la Temperatura Final deseada en el centro del alimento.")
                     else:
-                        temperatura_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2 # Media entre inicial del alimento y la del medio
-                                                                                                    
+                        temperatura_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2                                                                                                    
                         st.write(f"**Temperatura Media para Cálculo de Propiedades:** {temperatura_media_escaldado:.2f}°C")
 
-                        # Para escaldado, asumimos que no hay congelación, por lo que Tf_input es 0.0
                         densidad_escaldado = calcular_densidad_alimento(temperatura_media_escaldado, composicion, 0.0)
                         cp_escaldado = calcular_cp_alimento(temperatura_media_escaldado, composicion, 0.0)
                         k_escaldado = calcular_k_alimento(temperatura_media_escaldado, composicion, 0.0)
@@ -775,7 +777,6 @@ if st.sidebar.button("Realizar Cálculo"):
                         st.metric(label="Conductividad Térmica (k) Media", value=f"{k_escaldado:.4f} W/(m·K)")
                         st.metric(label="Difusividad Térmica (α) Media", value=f"{alpha_escaldado:.2e} m²/s")
 
-                        # Calcular tiempo de escaldado
                         tiempo_escaldado_segundos = calcular_tiempo_escaldado(
                             temp_inicial_escaldado, temp_final_escaldado, T_medio_escaldado,
                             h_escaldado, k_escaldado, alpha_escaldado, geometria, dimension_a
@@ -785,7 +786,6 @@ if st.sidebar.button("Realizar Cálculo"):
                             tiempo_escaldado_minutos = tiempo_escaldado_segundos / 60
                             st.metric(label="Tiempo de Escaldado (Centro)", value=f"{tiempo_escaldado_minutos:.2f} minutos")
 
-                            # --- Gráfica del Perfil de Temperatura ---
                             st.write("---")
                             st.subheader("Perfil de Temperatura al Final del Escaldado")
 
@@ -801,27 +801,25 @@ if st.sidebar.button("Realizar Cálculo"):
                                 ax.set_ylabel("Temperatura (°C)")
                                 ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_escaldado_minutos:.2f} min)")
                                 ax.grid(True)
-                                # Ajustar los límites del eje Y para que sean razonables
                                 min_temp_plot = min(temp_inicial_escaldado, T_medio_escaldado, np.min(temperaturas)) - 5
                                 max_temp_plot = max(temp_inicial_escaldado, T_medio_escaldado, np.max(temperaturas)) + 5
                                 ax.set_ylim(min_temp_plot, max_temp_plot)
                                 
-                                # Marcar la temperatura final en el centro
                                 ax.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro objetivo ({temp_final_escaldado}°C)')
                                 ax.legend()
                                 
                                 st.pyplot(fig)
-                                plt.close(fig) # Importante para liberar memoria
+                                plt.close(fig)
 
                             else:
                                 st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros de escaldado y asegúrese de que SciPy esté en requirements.txt para Cilindro/Esfera.")
                         else:
                             st.warning("No se pudo calcular el tiempo de escaldado. Revise los datos de entrada para esta sección.")
                 
-                elif opcion_calculo == "Parámetros para el cálculo del tiempo de congelación":
+                elif opcion_calculo == "Cálculo de tiempo de congelación":
                     st.subheader("Tiempo de Congelación (Ecuación de Plank)")
 
-                    tiempo_congelacion_horas = calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a, Tf_input)
+                    tiempo_congelacion_horas = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
 
                     if tiempo_congelacion_horas is not None:
                         st.metric(label="Tiempo de Congelación", value=f"{tiempo_congelacion_horas:.2f} horas")
@@ -832,7 +830,7 @@ if st.sidebar.button("Realizar Cálculo"):
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
                 st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
 
-# --- Referencias Bibliográficas (expandible) ---
+# --- Referencias Bibliográficas (en la sección principal) ---
 st.markdown("---")
 with st.expander("**Referencias Bibliográficas**"):
     st.markdown("""
