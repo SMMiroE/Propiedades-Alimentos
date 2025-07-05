@@ -1,4 +1,4 @@
-%%writefile food_calculator_app.py
+
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt # Reincorporado para la gráfica
