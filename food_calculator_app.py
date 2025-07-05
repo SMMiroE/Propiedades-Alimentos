@@ -1,6 +1,7 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt # Reincorporado para la gráfica
+import matplotlib.pyplot as plt
+from scipy.special import j0 # Importar j0 para cilindros
 
 # --- 1. Funciones para calcular la PROPIEDAD DE CADA COMPONENTE en función de la TEMPERATURA ---
 
@@ -165,60 +166,4 @@ def calcular_densidad_alimento(t, composicion, Tf_input):
     rho_alimento_inv = (Xu / densidad_agua(t)) + \
                        (Xi / densidad_agua(t)) + \
                        (Xp / densidad_proteina(t)) + \
-                       (Xf / densidad_grasa(t)) + \
-                       (Xc / densidad_carbohidrato(t)) + \
-                       (Xfi / densidad_fibra(t)) + \
-                       (Xa / densidad_cenizas(t))
-    return 1 / rho_alimento_inv
-
-
-def calcular_cp_alimento(t, composicion, Tf_input):
-    """
-    Calcula el calor específico del alimento usando las ecuaciones de Choi y Okos,
-    considerando la fracción de hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01:
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
-
-    Xw_inicial = composicion.get('agua', 0) / 100
-    Xi = calcular_fraccion_hielo(t, composicion.get('agua', 0), Tf_input)
-    Xu = Xw_inicial - Xi
-
-    Xp = composicion.get('proteina', 0) / 100
-    Xf = composicion.get('grasa', 0) / 100
-    Xc = composicion.get('carbohidrato', 0) / 100
-    Xfi = composicion.get('fibra', 0) / 100
-    Xa = composicion.get('cenizas', 0) / 100
-
-    cp_alimento = (Xu * cp_agua(t)) + \
-                  (Xi * cp_agua(t)) + \
-                  (Xp * cp_proteina(t)) + \
-                  (Xf * cp_grasa(t)) + \
-                  (Xc * cp_carbohidrato(t)) + \
-                  (Xfi * cp_fibra(t)) + \
-                  (Xa * cp_cenizas(t))
-    return cp_alimento
-
-
-def calcular_k_alimento(t, composicion, Tf_input):
-    """
-    Calcula la conductividad térmica del alimento usando las ecuaciones de Choi y Okos,
-    considerando la fracción de hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01:
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
-
-    Xw_inicial = composicion.get('agua', 0) / 100
-    Xi = calcular_fraccion_hielo(t, composicion.get('agua', 0), Tf_input)
-    Xu = Xw_inicial - Xi
-
-    Xp = composicion.get('proteina', 0) / 100
-    Xf = composicion.get('grasa', 0) / 100
-    Xc = composicion.get('carbohidrato', 0) / 100
-    Xfi = composicion.get('fibra', 0) / 100
-    Xa = composicion.get('cenizas', 0) / 100
-
-    k_alimento = (Xu * k_agua(t)) + \
-                 (Xi * k_agua(t)) + \
+                       (Xf / densidad_grasa
