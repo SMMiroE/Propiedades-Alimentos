@@ -992,7 +992,7 @@ with tab4:
     st.markdown(r"""
     Donde $X(x/L_c, \lambda_1)$ es la función de posición del primer término, que depende de la geometría y de la relación $x/L_c$.
     """)
-   st.markdown("""
+    st.markdown("""
     * **Placa Plana:**
         $X(x/L_c, \lambda_1) = \cos(\lambda_1 \cdot x/L_c)$
     * **Cilindro Infinito:**
