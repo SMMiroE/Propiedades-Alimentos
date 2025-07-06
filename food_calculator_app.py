@@ -995,9 +995,7 @@ with tab4:
     st.markdown("""
     * **Placa Plana:**
         $X(x/L_c, \lambda_1) = \cos(\lambda_1 \cdot x/L_c)$
-    * **Esfera:**
-        $X(x/L_c, \lambda_1)=\frac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}$
-    * **Cilindro Infinito:**
+   * **Cilindro Infinito:**
         $X(x/L_c, \lambda_1) = J_0(\lambda_1 \cdot x/L_c)$ (donde $J_0$ es la función de Bessel de primera clase, orden cero)
     * **Esfera:**
         $X(x/L_c, \lambda_1) = rac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}$
