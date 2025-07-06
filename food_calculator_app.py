@@ -329,7 +329,7 @@ def calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a, 
     return tiempo_segundos # Ahora retorna segundos, la conversión a minutos se hará en la UI
 
 
-# --- Funciones para el cálculo de tiempo de escaldado y perfil de temperatura ---
+# --- Funciones para el cálculo de tiempo de calentamiento/enfriamiento y perfil de temperatura ---
 
 def get_heisler_coeffs(bi, geometry):
     """
@@ -404,25 +404,35 @@ def get_heisler_coeffs(bi, geometry):
     return None, None # En caso de geometría no reconocida
 
 
-def calcular_tiempo_escaldado(T_inicial_alimento, T_final_alimento_centro, T_medio_escaldado, h_escaldado, k_alimento_medio, alpha_alimento_medio, geometria, dimension_a):
+def calcular_tiempo_transferencia_calor(T_inicial_alimento, T_final_alimento_punto_frio, T_medio, h, k_alimento_medio, alpha_alimento_medio, geometria, dimension_a):
     """
-    Calcula el tiempo de escaldado para que el centro del alimento alcance una temperatura objetivo.
+    Calcula el tiempo para que el punto frío (centro) del alimento alcance una temperatura objetivo.
     Usa la solución del primer término de la serie de Fourier (cartas de Heisler).
+    Puede usarse para calentamiento o enfriamiento (si T_medio es < T_inicial_alimento).
     :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_final_alimento_centro: Temperatura objetivo en el centro del alimento (°C).
-    :param T_medio_escaldado: Temperatura del medio de calentamiento (°C).
-    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m²·K)).
+    :param T_final_alimento_punto_frio: Temperatura objetivo en el punto frío del alimento (°C).
+    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
+    :param h: Coeficiente de transferencia de calor por convección (W/(m²·K)).
     :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
     :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
     :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
     :param dimension_a: Dimensión característica del alimento (m).
-    :return: Tiempo de escaldado en segundos.
+    :return: Tiempo en segundos.
     """
-    if T_medio_escaldado <= T_final_alimento_centro:
-        st.warning("La temperatura del medio de escaldado debe ser mayor que la temperatura final deseada en el centro del alimento.")
+    # Validaciones para asegurar la dirección del proceso y evitar divisiones por cero
+    if T_medio == T_inicial_alimento:
+        st.warning("La temperatura del medio no debe ser igual a la temperatura inicial del alimento.")
         return None
-    if h_escaldado <= 0 or k_alimento_medio <= 0 or alpha_alimento_medio <= 0 or dimension_a <= 0:
-        st.warning("Los valores de h, k, alpha y dimensión 'a' deben ser positivos para el cálculo del tiempo de escaldado.")
+    if (T_medio > T_inicial_alimento and T_final_alimento_punto_frio < T_inicial_alimento) or \
+       (T_medio < T_inicial_alimento and T_final_alimento_punto_frio > T_inicial_alimento):
+        st.warning("La temperatura final del punto frío no es coherente con la dirección de la transferencia de calor. Asegúrese de que la T final esté entre T inicial y T del medio.")
+        return None
+    if (T_medio > T_inicial_alimento and T_final_alimento_punto_frio > T_medio) or \
+       (T_medio < T_inicial_alimento and T_final_alimento_punto_frio < T_medio):
+        st.warning("La temperatura final del punto frío no puede superar la temperatura del medio.")
+        return None
+    if h <= 0 or k_alimento_medio <= 0 or alpha_alimento_medio <= 0 or dimension_a <= 0:
+        st.warning("Los valores de h, k, alpha y dimensión 'a' deben ser positivos para el cálculo del tiempo.")
         return None
 
     # Longitud característica Lc
@@ -432,7 +442,7 @@ def calcular_tiempo_escaldado(T_inicial_alimento, T_final_alimento_centro, T_med
     if k_alimento_medio == 0: # Evitar división por cero
         st.error("Conductividad térmica del alimento es cero, no se puede calcular el número de Biot.")
         return None
-    Bi = (h_escaldado * Lc) / k_alimento_medio
+    Bi = (h * Lc) / k_alimento_medio
 
     # Obtener coeficientes A1 y lambda1
     A1, lambda1 = get_heisler_coeffs(Bi, geometria)
@@ -441,15 +451,15 @@ def calcular_tiempo_escaldado(T_inicial_alimento, T_final_alimento_centro, T_med
         st.error(f"No se encontraron coeficientes A1 y lambda1 para Bi={Bi:.2f} y geometría {geometria}. Revise los rangos.")
         return None
 
-    # Relación de temperatura no dimensional en el centro
-    theta_0 = (T_final_alimento_centro - T_medio_escaldado) / (T_inicial_alimento - T_medio_escaldado)
+    # Relación de temperatura no dimensional en el centro (punto frío)
+    theta_0 = (T_final_alimento_punto_frio - T_medio) / (T_inicial_alimento - T_medio)
 
     # Validaciones adicionales para logaritmo
     if theta_0 <= 0 or A1 <= 0:
         st.warning("La relación de temperatura o A1 no son válidos para calcular el tiempo. Revise las temperaturas.")
         return None
     if theta_0 / A1 <= 0:
-        st.warning("El argumento del logaritmo es no positivo. Esto puede indicar que la temperatura final deseada es inalcanzable con la temperatura inicial dada, o que hay un problema con A1. Revise las temperaturas.")
+        st.warning("El argumento del logaritmo es no positivo. Esto puede indicar que la temperatura final deseada es inalcanzable, o que hay un problema con A1. Revise las temperaturas.")
         return None
 
     # Calcular el número de Fourier (Fo)
@@ -460,9 +470,8 @@ def calcular_tiempo_escaldado(T_inicial_alimento, T_final_alimento_centro, T_med
     try:
         Fo = - (1 / (lambda1**2)) * np.log(theta_0 / A1)
     except Exception as e:
-        st.error(f"Error inesperado al calcular Fo: {e}. Asegúrese de que T_final_alimento_centro sea alcanzable y que las temperaturas sean lógicas.")
+        st.error(f"Error inesperado al calcular Fo: {e}. Asegúrese de que T_final_alimento_punto_frio sea alcanzable y que las temperaturas sean lógicas.")
         return None
-
 
     # Calcular el tiempo (t) a partir de Fo
     if alpha_alimento_medio == 0: # Evitar división por cero
@@ -473,16 +482,16 @@ def calcular_tiempo_escaldado(T_inicial_alimento, T_final_alimento_centro, T_med
     return tiempo_segundos
 
 
-def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_escaldado, alpha_alimento_medio, k_alimento_medio, h_escaldado, geometria, dimension_a, num_puntos=50):
+def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, num_puntos=50):
     """
     Calcula el perfil de temperatura a través del alimento en un tiempo dado.
     Usa la solución del primer término de la serie de Fourier.
     :param t_final_segundos: Tiempo final en segundos.
     :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_medio_escaldado: Temperatura del medio de calentamiento (°C).
+    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
     :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
     :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m·K)).
+    :param h: Coeficiente de transferencia de calor por convección (W/(m·K)).
     :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
     :param dimension_a: Dimensión característica del alimento (m).
     :param num_puntos: Número de puntos para la gráfica del perfil.
@@ -493,7 +502,7 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
     if k_alimento_medio == 0:
         st.error("Conductividad térmica es cero, no se puede calcular el Número de Biot para el perfil.")
         return None, None
-    Bi = (h_escaldado * Lc) / k_alimento_medio
+    Bi = (h * Lc) / k_alimento_medio
 
     A1, lambda1 = get_heisler_coeffs(Bi, geometria)
 
@@ -557,20 +566,20 @@ def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio_es
     theta_x_t = A1 * exp_term * term_posicion
 
     # Convertir a temperatura real
-    temperaturas_en_puntos = T_medio_escaldado + theta_x_t * (T_inicial_alimento - T_medio_escaldado)
+    temperaturas_en_puntos = T_medio + theta_x_t * (T_inicial_alimento - T_medio)
 
     return posiciones_adimensionales, temperaturas_en_puntos
 
-def calcular_temperatura_centro_vs_tiempo(T_inicial_alimento, T_medio_escaldado, alpha_alimento_medio, k_alimento_medio, h_escaldado, geometria, dimension_a, max_tiempo_segundos, num_puntos_tiempo=100):
+def calcular_temperatura_punto_frio_vs_tiempo(T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, max_tiempo_segundos, num_puntos_tiempo=100):
     """
-    Calcula la temperatura del centro del alimento a lo largo del tiempo.
-    :return: Tupla de (tiempos_segundos, temperaturas_centro).
+    Calcula la temperatura del punto frío (centro) del alimento a lo largo del tiempo.
+    :return: Tupla de (tiempos_segundos, temperaturas_punto_frio).
     """
     Lc = dimension_a
     if k_alimento_medio == 0:
         st.error("Conductividad térmica es cero, no se puede calcular el Número de Biot para el perfil de tiempo.")
         return None, None
-    Bi = (h_escaldado * Lc) / k_alimento_medio
+    Bi = (h * Lc) / k_alimento_medio
 
     A1, lambda1 = get_heisler_coeffs(Bi, geometria)
 
@@ -583,7 +592,7 @@ def calcular_temperatura_centro_vs_tiempo(T_inicial_alimento, T_medio_escaldado,
         return None, None
 
     tiempos_segundos = np.linspace(0, max_tiempo_segundos, num_puntos_tiempo)
-    temperaturas_centro = []
+    temperaturas_punto_frio = []
 
     for t_sec in tiempos_segundos:
         Fo = (alpha_alimento_medio * t_sec) / Lc**2
@@ -591,32 +600,31 @@ def calcular_temperatura_centro_vs_tiempo(T_inicial_alimento, T_medio_escaldado,
         # Theta_0 = (T_0 - T_inf) / (T_i - T_inf)
         theta_0_t = A1 * np.exp(-lambda1**2 * Fo)
         
-        T_center = T_medio_escaldado + theta_0_t * (T_inicial_alimento - T_medio_escaldado)
-        temperaturas_centro.append(T_center)
+        T_center = T_medio + theta_0_t * (T_inicial_alimento - T_medio)
+        temperaturas_punto_frio.append(T_center)
 
-    return tiempos_segundos, np.array(temperaturas_centro)
+    return tiempos_segundos, np.array(temperaturas_punto_frio)
 
-# --- NUEVA FUNCIÓN: CALCULAR TEMPERATURA FINAL EN EL CENTRO ---
-def calcular_temperatura_final_centro(t_segundos, T_inicial_alimento, T_medio_escaldado, alpha_alimento_medio, k_alimento_medio, h_escaldado, geometria, dimension_a):
+def calcular_temperatura_final_punto_frio(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a):
     """
-    Calcula la temperatura en el centro del alimento para un tiempo de calentamiento dado.
+    Calcula la temperatura en el punto frío (centro) del alimento para un tiempo de calentamiento/enfriamiento dado.
     Usa la solución del primer término de la serie de Fourier (cartas de Heisler).
-    :param t_segundos: Tiempo de calentamiento dado en segundos.
+    :param t_segundos: Tiempo dado en segundos.
     :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_medio_escaldado: Temperatura del medio de calentamiento (°C).
+    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
     :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
     :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m²·K)).
+    :param h: Coeficiente de transferencia de calor por convección (W/(m²·K)).
     :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
     :param dimension_a: Dimensión característica del alimento (m).
-    :return: Temperatura final en el centro del alimento (°C).
+    :return: Temperatura final en el punto frío del alimento (°C).
     """
     Lc = dimension_a
 
     if k_alimento_medio == 0 or Lc == 0:
         st.error("Conductividad térmica o longitud característica son cero, no se puede calcular el Número de Biot para la temperatura final.")
         return None
-    Bi = (h_escaldado * Lc) / k_alimento_medio
+    Bi = (h * Lc) / k_alimento_medio
 
     A1, lambda1 = get_heisler_coeffs(Bi, geometria)
 
@@ -637,9 +645,9 @@ def calcular_temperatura_final_centro(t_segundos, T_inicial_alimento, T_medio_es
 
     # Convertir a temperatura real en el centro
     # T_0 = T_inf + Theta_0 * (T_i - T_inf)
-    T_final_centro = T_medio_escaldado + theta_0 * (T_inicial_alimento - T_medio_escaldado)
+    T_final_punto_frio = T_medio + theta_0 * (T_inicial_alimento - T_medio)
 
-    return T_final_centro
+    return T_final_punto_frio
 
 
 # --- CONFIGURACIÓN DE LA INTERFAZ CON STREAMLIT ---
@@ -657,7 +665,7 @@ st.markdown("<h3 style='text-align: center; font-size: 1.8em;'>PROCESOS TÉRMICO
 st.markdown("<p style='text-align: center; font-size: 1.0em;'>Herramienta de simulación</p>", unsafe_allow_html=True)
 
 st.markdown("""
-<p style='font-size: 0.9em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>escaldado</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
+<p style='font-size: 0.9em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>calentamiento y enfriamiento</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
 """, unsafe_allow_html=True)
 
 st.markdown("---") # Separador visual
@@ -689,8 +697,9 @@ opcion_calculo = st.radio(
     (
         "Propiedades a T > 0°C",
         "Propiedades a T < 0°C",
-        "Tiempo de escaldado (min)",
-        "Temperatura final en el centro (ºC)", # ¡Nueva opción!
+        "Tiempo de calentamiento (min)", # Renombrado
+        "Temperatura final en el punto frío (ºC)", # Renombrado
+        "Tiempo de enfriamiento (T > Tf hasta Tf) (min)", # Nueva opción
         "Tiempo de congelación (min)"
     ),
     key="main_opcion_calculo" # Key único para este radio button
@@ -704,14 +713,19 @@ temperatura_calculo = 25.0
 Tf_input = -1.8 # Initial freezing point
 geometria = 'Placa'
 dimension_a = 0.05
-temp_inicial_escaldado = 20.0
-temp_final_escaldado = 85.0
-T_medio_escaldado = 95.0
-h_escaldado = 100.0
+temp_inicial_calentamiento = 20.0 # Renombrada
+temp_final_punto_frio_calentamiento = 85.0 # Renombrada
+T_medio_calentamiento = 95.0 # Renombrada
+h_calentamiento = 100.0 # Renombrada
+
+temp_inicial_enfriamiento = 20.0 # Nueva para enfriamiento
+T_medio_enfriamiento = -5.0 # Nueva para enfriamiento
+h_enfriamiento = 50.0 # Nueva para enfriamiento
+
 T0_congelacion = 20.0
 Ta_congelacion = -20.0
 h_congelacion = 15.0
-tiempo_calentamiento_dado_min = 5.0 # Nuevo valor por defecto para la nueva opción
+tiempo_dado_min = 5.0 # Usado tanto para calentamiento como para enfriamiento
 
 # Mostrar los campos de entrada relevantes en la sección principal
 if opcion_calculo == "Propiedades a T > 0°C":
@@ -743,39 +757,57 @@ elif opcion_calculo == "Propiedades a T < 0°C":
         st.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
 
 
-elif opcion_calculo == "Tiempo de escaldado (min)":
-    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros</h5>", unsafe_allow_html=True)
-    col_esc1, col_esc2 = st.columns(2)
-    with col_esc1:
-        temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1)
-        temp_final_escaldado = st.number_input("Temperatura Final en el Centro del Alimento (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
-        T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
-    with col_esc2:
-        h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
-        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado_main")
-        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado_main")
+elif opcion_calculo == "Tiempo de calentamiento (min)": # Renombrado
+    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros para el cálculo del tiempo de calentamiento</h5>", unsafe_allow_html=True)
+    col_cal1, col_cal2 = st.columns(2)
+    with col_cal1:
+        temp_inicial_calentamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_calentamiento")
+        temp_final_punto_frio_calentamiento = st.number_input("Temperatura Final en el Punto Frío (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1, key="tf_calentamiento")
+        T_medio_calentamiento = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_calentamiento")
+    with col_cal2:
+        h_calentamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_calentamiento")
+        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_calentamiento_main")
+        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_calentamiento_main")
 
-elif opcion_calculo == "Temperatura final en el centro (ºC)":
+elif opcion_calculo == "Temperatura final en el punto frío (ºC)": # Renombrado
     st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros para el cálculo de temperatura final</h5>", unsafe_allow_html=True)
     col_tempf1, col_tempf2 = st.columns(2)
     with col_tempf1:
-        temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_temp_final")
-        tiempo_calentamiento_dado_min = st.number_input("Tiempo de Calentamiento (min)", min_value=0.01, max_value=1000.0, value=5.0, step=0.1, key="tiempo_dado_temp_final")
-        T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_temp_final")
+        temp_inicial_calentamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_temp_final")
+        tiempo_dado_min = st.number_input("Tiempo de Proceso (min)", min_value=0.01, max_value=1000.0, value=5.0, step=0.1, key="tiempo_dado_temp_final")
+        T_medio_calentamiento = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_temp_final")
     with col_tempf2:
-        h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_temp_final")
+        h_calentamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_temp_final")
         geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_temp_final")
         dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_temp_final")
+
+elif opcion_calculo == "Tiempo de enfriamiento (T > Tf hasta Tf) (min)": # ¡Nueva opción!
+    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los Parámetros para el Cálculo del tiempo de enfriamiento</h5>", unsafe_allow_html=True)
+    col_enf1, col_enf2 = st.columns(2)
+    with col_enf1:
+        temp_inicial_enfriamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_enfriamiento")
+        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1, key="tf_enfriamiento_param")
+        T_medio_enfriamiento = st.number_input("Temperatura del Medio Enfriador (°C)", min_value=-60.0, max_value=30.0, value=-5.0, step=0.1, key="tm_enfriamiento")
+    with col_enf2:
+        h_enfriamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=50.0, step=0.1, key="h_enfriamiento")
+        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_enfriamiento_main")
+        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_enfriamiento_main")
+    
+    if T_medio_enfriamiento >= Tf_input:
+        st.warning("La temperatura del medio enfriador debe ser menor que la Temperatura Inicial de Congelación (Tf) del alimento para que ocurra el enfriamiento hasta Tf.")
+    if temp_inicial_enfriamiento <= Tf_input:
+        st.warning("La Temperatura Inicial del alimento debe ser mayor que la Temperatura Inicial de Congelación (Tf) del alimento.")
+
 
 elif opcion_calculo == "Tiempo de congelación (min)":
     st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los Parámetros para el Cálculo del tiempo de congelación</h5>", unsafe_allow_html=True)
     col_cong1, col_cong2 = st.columns(2)
     with col_cong1:
-        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
-        T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
-        Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
+        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1, key="tf_congelacion_param")
+        T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1, key="t0_congelacion")
+        Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1, key="ta_congelacion")
     with col_cong2:
-        h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
+        h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1, key="h_congelacion")
         geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
         dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion_main")
 
@@ -848,40 +880,37 @@ if st.button("Realizar Cálculo"):
                         st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
 
 
-                elif opcion_calculo == "Tiempo de escaldado (min)": # Opción renombrada
-                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Escaldado</h4>", unsafe_allow_html=True) # Título cambiado
-                    # Eliminadas las propiedades termofísicas medias de esta sección
-
-                    if temp_inicial_escaldado >= temp_final_escaldado:
-                        st.warning("La Temperatura Final deseada en el centro del alimento debe ser mayor que la Temperatura Inicial del alimento.")
-                    elif T_medio_escaldado <= temp_final_escaldado:
-                        st.warning("La Temperatura del Medio de Escaldado debe ser estrictamente mayor que la Temperatura Final deseada en el centro del alimento.")
+                elif opcion_calculo == "Tiempo de calentamiento (min)": # Renombrado
+                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Calentamiento</h4>", unsafe_allow_html=True) # Título cambiado
+                    
+                    if temp_inicial_calentamiento >= temp_final_punto_frio_calentamiento:
+                        st.warning("La Temperatura Final deseada en el punto frío debe ser mayor que la Temperatura Inicial del alimento.")
+                    elif T_medio_calentamiento <= temp_final_punto_frio_calentamiento:
+                        st.warning("La Temperatura del Medio Calefactor debe ser estrictamente mayor que la Temperatura Final deseada en el punto frío del alimento.")
                     else:
-                        # La variable 'temp_media_escaldado' ya está definida globalmente
-                        # y se actualiza aquí, luego se usa para calcular las propiedades.
-                        temp_media_escaldado = (temp_inicial_escaldado + T_medio_escaldado) / 2                                                                                                    
+                        # Se usa la temperatura promedio para calcular las propiedades.
+                        temp_media_propiedades_calentamiento = (temp_inicial_calentamiento + T_medio_calentamiento) / 2
                         
-                        # No mostrar las propiedades medias aquí, pero se calculan para el tiempo
-                        densidad_escaldado = calcular_densidad_alimento(temp_media_escaldado, composicion, 0.0)
-                        cp_escaldado = calcular_cp_alimento(temp_media_escaldado, composicion, 0.0)
-                        k_escaldado = calcular_k_alimento(temp_media_escaldado, composicion, 0.0)
-                        alpha_escaldado = calcular_alpha_alimento(temp_media_escaldado, composicion, 0.0)
+                        densidad_calc = calcular_densidad_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
+                        cp_calc = calcular_cp_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
+                        k_calc = calcular_k_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
+                        alpha_calc = calcular_alpha_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
 
-                        tiempo_escaldado_segundos = calcular_tiempo_escaldado(
-                            temp_inicial_escaldado, temp_final_escaldado, T_medio_escaldado,
-                            h_escaldado, k_escaldado, alpha_escaldado, geometria, dimension_a
+                        tiempo_segundos = calcular_tiempo_transferencia_calor(
+                            temp_inicial_calentamiento, temp_final_punto_frio_calentamiento, T_medio_calentamiento,
+                            h_calentamiento, k_calc, alpha_calc, geometria, dimension_a
                         )
 
-                        if tiempo_escaldado_segundos is not None:
-                            tiempo_escaldado_minutos = tiempo_escaldado_segundos / 60
-                            st.metric(label="Tiempo de Escaldado (Centro)", value=f"{tiempo_escaldado_minutos:.2f} minutos")
+                        if tiempo_segundos is not None:
+                            tiempo_minutos = tiempo_segundos / 60
+                            st.metric(label="Tiempo de Calentamiento (Punto Frío)", value=f"{tiempo_minutos:.2f} minutos")
 
                             st.write("---")
-                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Escaldado</h4>", unsafe_allow_html=True)
+                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Calentamiento</h4>", unsafe_allow_html=True)
 
                             posiciones, temperaturas = calcular_perfil_temperatura(
-                                tiempo_escaldado_segundos, temp_inicial_escaldado, T_medio_escaldado,
-                                alpha_escaldado, k_escaldado, h_escaldado, geometria, dimension_a
+                                tiempo_segundos, temp_inicial_calentamiento, T_medio_calentamiento,
+                                alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
                             )
 
                             if posiciones is not None and temperaturas is not None:
@@ -889,81 +918,79 @@ if st.button("Realizar Cálculo"):
                                 ax.plot(posiciones * dimension_a * 100, temperaturas, marker='o', linestyle='-', markersize=4) # Convertir a cm para el eje x
                                 ax.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
                                 ax.set_ylabel("Temperatura (°C)")
-                                ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_escaldado_minutos:.2f} min)")
+                                ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_minutos:.2f} min)")
                                 ax.grid(True)
-                                min_temp_plot = min(temp_inicial_escaldado, T_medio_escaldado, np.min(temperaturas)) - 5
-                                max_temp_plot = max(temp_inicial_escaldado, T_medio_escaldado, np.max(temperaturas)) + 5
+                                min_temp_plot = min(temp_inicial_calentamiento, T_medio_calentamiento, np.min(temperaturas)) - 5
+                                max_temp_plot = max(temp_inicial_calentamiento, T_medio_calentamiento, np.max(temperaturas)) + 5
                                 ax.set_ylim(min_temp_plot, max_temp_plot)
                                 
-                                ax.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro ({temp_final_escaldado}°C)') # Texto cambiado
+                                ax.axhline(y=temp_final_punto_frio_calentamiento, color='r', linestyle='--', label=f'T punto frío ({temp_final_punto_frio_calentamiento}°C)')
                                 ax.legend()
                                 
                                 st.pyplot(fig)
                                 plt.close(fig)
 
                             else:
-                                st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros de escaldado y asegúrese de que SciPy esté en requirements.txt para Cilindro/Esfera.")
+                                st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros.")
 
-                            # Nuevo gráfico: Temperatura del centro vs tiempo
-                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Centro vs. Tiempo</h4>", unsafe_allow_html=True)
+                            # Nuevo gráfico: Temperatura del punto frío vs tiempo
+                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
                             
-                            # MODIFICACIÓN CLAVE AQUÍ:
-                            # Se usa el tiempo_escaldado_segundos calculado como el tiempo máximo para la gráfica.
-                            max_plot_time = tiempo_escaldado_segundos 
+                            max_plot_time = tiempo_segundos 
                             
-                            tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
-                                temp_inicial_escaldado, T_medio_escaldado, alpha_escaldado, k_escaldado, h_escaldado,
+                            tiempos_plot, temps_center_plot = calcular_temperatura_punto_frio_vs_tiempo(
+                                temp_inicial_calentamiento, T_medio_calentamiento, alpha_calc, k_calc, h_calentamiento,
                                 geometria, dimension_a, max_tiempo_segundos=max_plot_time
                             )
 
                             if tiempos_plot is not None and temps_center_plot is not None:
                                 fig_time, ax_time = plt.subplots(figsize=(8, 5))
-                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Centro') # Tiempo en minutos
-                                ax_time.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
-                                ax_time.axhline(y=temp_final_escaldado, color='r', linestyle='--', label=f'T centro objetivo ({temp_final_escaldado}°C)')
+                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Punto Frío') # Tiempo en minutos
+                                ax_time.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time.axhline(y=temp_final_punto_frio_calentamiento, color='r', linestyle='--', label=f'T punto frío objetivo ({temp_final_punto_frio_calentamiento}°C)')
                                 ax_time.set_xlabel("Tiempo (min)")
                                 ax_time.set_ylabel("Temperatura (°C)")
-                                ax_time.set_title("Temperatura del Centro del Alimento a lo largo del Tiempo")
+                                ax_time.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
                                 ax_time.grid(True)
                                 ax_time.legend()
                                 st.pyplot(fig_time)
                                 plt.close(fig_time)
                             else:
-                                st.warning("No se pudo generar el gráfico de Temperatura del centro vs. Tiempo.")
+                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo.")
 
                         else:
-                            st.warning("No se pudo calcular el tiempo de escaldado. Revise los datos de entrada para esta sección.")
+                            st.warning("No se pudo calcular el tiempo de calentamiento. Revise los datos de entrada para esta sección.")
                 
-                elif opcion_calculo == "Temperatura final en el centro (ºC)": # ¡Nuevo bloque de cálculo!
-                    st.markdown("<h4 style='font-size: 1.4em;'>Temperatura Final en el Centro del Alimento</h4>", unsafe_allow_html=True)
+                elif opcion_calculo == "Temperatura final en el punto frío (ºC)": # Renombrado
+                    st.markdown("<h4 style='font-size: 1.4em;'>Temperatura Final en el Punto Frío del Alimento</h4>", unsafe_allow_html=True)
 
-                    if T_medio_escaldado <= temp_inicial_escaldado:
+                    if T_medio_calentamiento <= temp_inicial_calentamiento:
                         st.warning("La temperatura del medio calefactor debe ser mayor que la temperatura inicial del alimento para que haya calentamiento.")
                     else:
-                        temp_media_propiedades = (temp_inicial_escaldado + T_medio_escaldado) / 2
+                        temp_media_propiedades = (temp_inicial_calentamiento + T_medio_calentamiento) / 2
                         
                         densidad_calc = calcular_densidad_alimento(temp_media_propiedades, composicion, 0.0)
                         cp_calc = calcular_cp_alimento(temp_media_propiedades, composicion, 0.0)
                         k_calc = calcular_k_alimento(temp_media_propiedades, composicion, 0.0)
                         alpha_calc = calcular_alpha_alimento(temp_media_propiedades, composicion, 0.0)
 
-                        tiempo_calentamiento_dado_seg = tiempo_calentamiento_dado_min * 60
+                        tiempo_dado_seg = tiempo_dado_min * 60
 
-                        T_final_calculada = calcular_temperatura_final_centro(
-                            tiempo_calentamiento_dado_seg, temp_inicial_escaldado, T_medio_escaldado,
-                            alpha_calc, k_calc, h_escaldado, geometria, dimension_a
+                        T_final_calculada = calcular_temperatura_final_punto_frio(
+                            tiempo_dado_seg, temp_inicial_calentamiento, T_medio_calentamiento,
+                            alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
                         )
 
                         if T_final_calculada is not None:
-                            st.metric(label="Temperatura Final en el Centro", value=f"{T_final_calculada:.2f} °C")
+                            st.metric(label="Temperatura Final en el Punto Frío", value=f"{T_final_calculada:.2f} °C")
                             
                             # Opcional: Mostrar el perfil de temperatura al tiempo dado
                             st.write("---")
                             st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Tiempo Dado</h4>", unsafe_allow_html=True)
 
                             posiciones, temperaturas_perfil = calcular_perfil_temperatura(
-                                tiempo_calentamiento_dado_seg, temp_inicial_escaldado, T_medio_escaldado,
-                                alpha_calc, k_calc, h_escaldado, geometria, dimension_a
+                                tiempo_dado_seg, temp_inicial_calentamiento, T_medio_calentamiento,
+                                alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
                             )
 
                             if posiciones is not None and temperaturas_perfil is not None:
@@ -971,42 +998,121 @@ if st.button("Realizar Cálculo"):
                                 ax_perfil.plot(posiciones * dimension_a * 100, temperaturas_perfil, marker='o', linestyle='-', markersize=4) # Convertir a cm
                                 ax_perfil.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
                                 ax_perfil.set_ylabel("Temperatura (°C)")
-                                ax_perfil.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_calentamiento_dado_min:.2f} min)")
+                                ax_perfil.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_dado_min:.2f} min)")
                                 ax_perfil.grid(True)
-                                ax_perfil.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='T Medio')
-                                ax_perfil.axhline(y=T_final_calculada, color='r', linestyle='--', label=f'T Centro ({T_final_calculada:.2f}°C)')
+                                ax_perfil.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='T Medio')
+                                ax_perfil.axhline(y=T_final_calculada, color='r', linestyle='--', label=f'T Punto Frío ({T_final_calculada:.2f}°C)')
                                 ax_perfil.legend()
                                 st.pyplot(fig_perfil)
                                 plt.close(fig_perfil)
                             else:
                                 st.warning("No se pudo generar el perfil de temperatura para el tiempo dado.")
                             
-                            # Opcional: Mostrar la temperatura del centro vs tiempo (hasta el tiempo dado)
-                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Centro vs. Tiempo</h4>", unsafe_allow_html=True)
-                            tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
-                                temp_inicial_escaldado, T_medio_escaldado, alpha_calc, k_calc, h_escaldado,
-                                geometria, dimension_a, max_tiempo_segundos=tiempo_calentamiento_dado_seg
+                            # Opcional: Mostrar la temperatura del punto frío vs tiempo (hasta el tiempo dado)
+                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
+                            tiempos_plot, temps_center_plot = calcular_temperatura_punto_frio_vs_tiempo(
+                                temp_inicial_calentamiento, T_medio_calentamiento, alpha_calc, k_calc, h_calentamiento,
+                                geometria, dimension_a, max_tiempo_segundos=tiempo_dado_seg
                             )
                             if tiempos_plot is not None and temps_center_plot is not None:
                                 fig_time, ax_time = plt.subplots(figsize=(8, 5))
-                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Centro') # Tiempo en minutos
-                                ax_time.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
-                                ax_time.axvline(x=tiempo_calentamiento_dado_min, color='blue', linestyle='--', label=f'Tiempo dado ({tiempo_calentamiento_dado_min:.2f} min)')
+                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Punto Frío') # Tiempo en minutos
+                                ax_time.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time.axvline(x=tiempo_dado_min, color='blue', linestyle='--', label=f'Tiempo dado ({tiempo_dado_min:.2f} min)')
                                 ax_time.set_xlabel("Tiempo (min)")
                                 ax_time.set_ylabel("Temperatura (°C)")
-                                ax_time.set_title("Temperatura del Centro del Alimento a lo largo del Tiempo")
+                                ax_time.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
                                 ax_time.grid(True)
                                 ax_time.legend()
                                 st.pyplot(fig_time)
                                 plt.close(fig_time)
                             else:
-                                st.warning("No se pudo generar el gráfico de Temperatura del centro vs. Tiempo.")
+                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo.")
 
                         else:
-                            st.warning("No se pudo calcular la temperatura final en el centro. Revise los datos de entrada.")
+                            st.warning("No se pudo calcular la temperatura final en el punto frío. Revise los datos de entrada.")
+
+                elif opcion_calculo == "Tiempo de enfriamiento (T > Tf hasta Tf) (min)": # ¡Nuevo bloque de cálculo!
+                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Enfriamiento (Hasta Tf)</h4>", unsafe_allow_html=True)
+                    
+                    if temp_inicial_enfriamiento <= Tf_input:
+                        st.warning("La Temperatura Inicial del alimento debe ser mayor que la Temperatura Inicial de Congelación (Tf) para que ocurra este tipo de enfriamiento.")
+                    elif T_medio_enfriamiento >= Tf_input:
+                        st.warning("La Temperatura del Medio Enfriador debe ser menor que la Temperatura Inicial de Congelación (Tf) del alimento.")
+                    else:
+                        # Para las propiedades en la fase de enfriamiento hasta Tf, usamos la temperatura media
+                        # entre la inicial del alimento y la de congelación (Tf).
+                        temp_media_propiedades_enf = (temp_inicial_enfriamiento + Tf_input) / 2
+                        
+                        densidad_calc_enf = calcular_densidad_alimento(temp_media_propiedades_enf, composicion, Tf_input)
+                        cp_calc_enf = calcular_cp_alimento(temp_media_propiedades_enf, composicion, Tf_input)
+                        k_calc_enf = calcular_k_alimento(temp_media_propiedades_enf, composicion, Tf_input)
+                        alpha_calc_enf = calcular_alpha_alimento(temp_media_propiedades_enf, composicion, Tf_input)
+
+                        tiempo_enfriamiento_segundos = calcular_tiempo_transferencia_calor(
+                            temp_inicial_enfriamiento, Tf_input, T_medio_enfriamiento,
+                            h_enfriamiento, k_calc_enf, alpha_calc_enf, geometria, dimension_a
+                        )
+
+                        if tiempo_enfriamiento_segundos is not None:
+                            tiempo_enfriamiento_minutos = tiempo_enfriamiento_segundos / 60
+                            st.metric(label=f"Tiempo de Enfriamiento (hasta Tf {Tf_input}°C)", value=f"{tiempo_enfriamiento_minutos:.2f} minutos")
+
+                            st.write("---")
+                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Enfriamiento</h4>", unsafe_allow_html=True)
+
+                            posiciones, temperaturas = calcular_perfil_temperatura(
+                                tiempo_enfriamiento_segundos, temp_inicial_enfriamiento, T_medio_enfriamiento,
+                                alpha_calc_enf, k_calc_enf, h_enfriamiento, geometria, dimension_a
+                            )
+
+                            if posiciones is not None and temperaturas is not None:
+                                fig, ax = plt.subplots(figsize=(8, 5))
+                                ax.plot(posiciones * dimension_a * 100, temperaturas, marker='o', linestyle='-', markersize=4) # Convertir a cm
+                                ax.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
+                                ax.set_ylabel("Temperatura (°C)")
+                                ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_enfriamiento_minutos:.2f} min)")
+                                ax.grid(True)
+                                min_temp_plot = min(temp_inicial_enfriamiento, T_medio_enfriamiento, np.min(temperaturas)) - 5
+                                max_temp_plot = max(temp_inicial_enfriamiento, T_medio_enfriamiento, np.max(temperaturas)) + 5
+                                ax.set_ylim(min_temp_plot, max_temp_plot)
+                                
+                                ax.axhline(y=Tf_input, color='r', linestyle='--', label=f'Tf ({Tf_input}°C)')
+                                ax.legend()
+                                
+                                st.pyplot(fig)
+                                plt.close(fig)
+                            else:
+                                st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros.")
+                            
+                            # Gráfico: Temperatura del punto frío vs tiempo
+                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
+                            
+                            max_plot_time_enf = tiempo_enfriamiento_segundos
+                            tiempos_plot_enf, temps_center_plot_enf = calcular_temperatura_punto_frio_vs_tiempo(
+                                temp_inicial_enfriamiento, T_medio_enfriamiento, alpha_calc_enf, k_calc_enf, h_enfriamiento,
+                                geometria, dimension_a, max_tiempo_segundos=max_plot_time_enf
+                            )
+                            if tiempos_plot_enf is not None and temps_center_plot_enf is not None:
+                                fig_time_enf, ax_time_enf = plt.subplots(figsize=(8, 5))
+                                ax_time_enf.plot(tiempos_plot_enf / 60, temps_center_plot_enf, label='Temperatura del Punto Frío')
+                                ax_time_enf.axhline(y=T_medio_enfriamiento, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time_enf.axhline(y=Tf_input, color='r', linestyle='--', label=f'Tf ({Tf_input}°C)')
+                                ax_time_enf.set_xlabel("Tiempo (min)")
+                                ax_time_enf.set_ylabel("Temperatura (°C)")
+                                ax_time_enf.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
+                                ax_time_enf.grid(True)
+                                ax_time_enf.legend()
+                                st.pyplot(fig_time_enf)
+                                plt.close(fig_time_enf)
+                            else:
+                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo para enfriamiento.")
+
+                        else:
+                            st.warning("No se pudo calcular el tiempo de enfriamiento hasta Tf. Revise los datos de entrada para esta sección.")
 
 
-                elif opcion_calculo == "Tiempo de congelación (min)": # Opción renombrada
+                elif opcion_calculo == "Tiempo de congelación (min)":
                     st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Congelación (Ecuación de Plank)</h4>", unsafe_allow_html=True)
 
                     tiempo_congelacion_segundos = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
@@ -1055,7 +1161,7 @@ with tab1:
 
     4.  **Realiza el Cálculo:**
         * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la pantalla principal.
-        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).
+        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica.
     """, unsafe_allow_html=True)
 
 with tab2:
