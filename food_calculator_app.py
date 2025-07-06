@@ -999,7 +999,7 @@ with tab4:
     * **Cilindro Infinito:**
         $X(x/L_c, \lambda_1) = J_0(\lambda_1 \cdot x/L_c)$ (donde $J_0$ es la función de Bessel de primera clase, orden cero)
     * **Esfera:**
-        $X(x/L_c, \lambda_1) = \frac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}$
+        $X(x/L_c, \lambda_1) =\frac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}$
     """)
     st.markdown("""
     *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
