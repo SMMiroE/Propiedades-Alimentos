@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
-from scipy.special import jv # Para funciones de Bessel
-import pandas as pd # Para la tabla de datos de Fo vs Bi
+from scipy.special import jv
+import pandas as pd
 
 # --- Configuración de la página de Streamlit ---
 st.set_page_config(
@@ -9,6 +9,12 @@ st.set_page_config(
     page_icon="🍎",
     layout="wide"
 )
+
+# --- Constantes globales para la ecuación de fracción de hielo y PMs ---
+L_molar_fusion_agua = 6010.0 # J/mol (333.6 J/g * 18.015 g/mol)
+R_gas = 8.314 # J/(mol·K)
+T0_ref = 273.15 # K (0°C)
+PM_agua = 18.015 # g/mol (o kg/kmol)
 
 # --- Funciones de Choi y Okos (Propiedades termofísicas) ---
 
@@ -53,19 +59,72 @@ def cp_cenizas(t): return 1092.6 + 1.8896 * t - 3.6817e-3 * t**2
 def k_cenizas(t): return 0.32962 + 1.4011e-3 * t - 2.9069e-6 * t**2
 
 # Función para calcular la fracción de hielo (Xi) y agua no congelada (Xu)
-def calcular_fraccion_hielo(t, agua_porcentaje, Tf_input):
-    L0 = 333.6e3 # Calor latente de fusión del hielo a 0°C en J/kg
-    cp_agua_liquida_ref = 4186 # J/(kg·K) - Cp del agua líquida de referencia
-    if t < Tf_input:
-        # Fracción de hielo (Xi)
-        Xi = (L0 / (cp_agua_liquida_ref * (Tf_input - t))) * (agua_porcentaje / 100)
-        # Asegurarse de que Xi esté entre 0 y 1
-        Xi = max(0, min(1, Xi))
-        # Fracción de agua no congelada (Xu)
-        Xu = (agua_porcentaje / 100) - Xi
+def calcular_fraccion_hielo(t_celsius, agua_porcentaje_inicial, Tf_input_celsius):
+    """
+    Calcula la fracción de hielo (Xi) y agua no congelada (Xu)
+    usando la ecuación de la depresión del punto de congelación para XA.
+
+    Args:
+        t_celsius (float): Temperatura actual del alimento en °C.
+        agua_porcentaje_inicial (float): Porcentaje inicial de agua en el alimento (0-100).
+        Tf_input_celsius (float): Temperatura inicial de congelación del alimento en °C.
+
+    Returns:
+        tuple: (Xi, Xu) Fracciones de masa de hielo y agua no congelada (0-1) respecto a la masa total del alimento.
+    """
+    T_kelvin = t_celsius + 273.15
+    Tf_input_kelvin = Tf_input_celsius + 273.15
+
+    agua_total_fraccion_masa = agua_porcentaje_inicial / 100.0
+
+    if t_celsius >= Tf_input_celsius:
+        # No hay hielo si la temperatura es igual o superior al punto de congelación inicial
+        Xi = 0.0
+        Xu = agua_total_fraccion_masa
     else:
-        Xi = 0
-        Xu = (agua_porcentaje / 100)
+        # Calcular la fracción molar de agua no congelada (XA)
+        if T_kelvin <= 0: # Para evitar log(0) o divisiones por 0 o valores muy pequeños que puedan dar inf
+            XA_fraccion_molar = 0.0 # Completamente congelado si T es 0K o menos (teórico)
+        else:
+            try:
+                # Ecuación: ln(XA) = (lambda/R) * (1/T0 - 1/T)
+                ln_XA = (L_molar_fusion_agua / R_gas) * ((1 / T0_ref) - (1 / T_kelvin))
+                XA_fraccion_molar = np.exp(ln_XA)
+            except OverflowError:
+                XA_fraccion_molar = 0.0 # Si el valor es muy pequeño, exp(ln_XA) puede ser 0
+            except Exception as e:
+                st.warning(f"Advertencia en el cálculo de fracción molar de agua no congelada (XA): {e}. Asumiendo 0% agua no congelada.")
+                XA_fraccion_molar = 0.0 # En caso de error, asumir completamente congelado
+
+        # Asegurarse de que XA_fraccion_molar esté en el rango [0, 1]
+        XA_fraccion_molar = max(0.0, min(1.0, XA_fraccion_molar))
+
+        # Ahora usamos XA_fraccion_molar (que es X de la imagen) para encontrar mu
+        # XA = (mu / PM_agua) / ((mu / PM_agua) + (ms / PMs))
+        # Para esto, necesitamos PMs. Sin PMs, la ecuación de XA es un problema aquí.
+        # Volveremos a la aproximación anterior si no se proporciona PMs.
+        # Si la ecuación de ln XA... es el cálculo de XA, y XA es la actividad del agua,
+        # entonces la fracción de agua no congelada Xu (másica) se puede estimar.
+
+        # *** Corrección crucial aquí:
+        # La ecuación de ln X_A que me diste antes (que interpretamos como X)
+        # es para la actividad de agua (a_w). Si a_w = X_A, y a_w = Xu / Xu_max
+        # donde Xu_max es la fracción de agua inicial.
+        # Entonces, la fracción de agua no congelada respecto a la total inicial de agua es X_A.
+        # Fracción masa de agua no congelada (Xu) sobre masa total de alimento
+        Xu = XA_fraccion_molar * agua_total_fraccion_masa
+
+        # Fracción de hielo (Xi) sobre masa total de alimento
+        Xi = agua_total_fraccion_masa - Xu
+
+        # Asegurarse de que Xi sea no negativo y Xu no exceda el agua total
+        Xi = max(0.0, Xi)
+        Xu = min(agua_total_fraccion_masa, Xu)
+        # Ajuste para consistencia: si Xi > 0, Xu debe ser el complemento
+        if Xi > 0:
+            Xu = agua_total_fraccion_masa - Xi
+
+
     return Xi, Xu
 
 # Funciones principales para calcular propiedades del alimento
@@ -73,57 +132,77 @@ def calcular_densidad_alimento(t, composicion, Tf_input):
     agua_porcentaje = composicion['agua']
     Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
+    # Convertir a fracciones de masa
+    f_p = composicion['proteina'] / 100
+    f_g = composicion['grasa'] / 100
+    f_c = composicion['carbohidrato'] / 100
+    f_f = composicion['fibra'] / 100
+    f_z = composicion['cenizas'] / 100
+
     rho_inv = (Xu / densidad_agua(t)) + \
               (Xi / densidad_agua(t - 0.0001)) + \
-              (composicion['proteina'] / 100 / densidad_proteina(t)) + \
-              (composicion['grasa'] / 100 / densidad_grasa(t)) + \
-              (composicion['carbohidrato'] / 100 / densidad_carbohidrato(t)) + \
-              (composicion['fibra'] / 100 / densidad_fibra(t)) + \
-              (composicion['cenizas'] / 100 / densidad_cenizas(t))
+              (f_p / densidad_proteina(t)) + \
+              (f_g / densidad_grasa(t)) + \
+              (f_c / densidad_carbohidrato(t)) + \
+              (f_f / densidad_fibra(t)) + \
+              (f_z / densidad_cenizas(t))
+    
+    if rho_inv == 0: return 0
     return 1 / rho_inv
 
 def calcular_cp_alimento(t, composicion, Tf_input):
     agua_porcentaje = composicion['agua']
     Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
+    f_p = composicion['proteina'] / 100
+    f_g = composicion['grasa'] / 100
+    f_c = composicion['carbohidrato'] / 100
+    f_f = composicion['fibra'] / 100
+    f_z = composicion['cenizas'] / 100
+
     cp_val = (Xu * cp_agua(t)) + \
              (Xi * cp_agua(t - 0.0001)) + \
-             (composicion['proteina'] / 100 * cp_proteina(t)) + \
-             (composicion['grasa'] / 100 * cp_grasa(t)) + \
-             (composicion['carbohidrato'] / 100 * cp_carbohidrato(t)) + \
-             (composicion['fibra'] / 100 * cp_fibra(t)) + \
-             (composicion['cenizas'] / 100 * cp_cenizas(t))
+             (f_p * cp_proteina(t)) + \
+             (f_g * cp_grasa(t)) + \
+             (f_c * cp_carbohidrato(t)) + \
+             (f_f * cp_fibra(t)) + \
+             (f_z * cp_cenizas(t))
     return cp_val
 
 def calcular_k_alimento(t, composicion, Tf_input):
     agua_porcentaje = composicion['agua']
     Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
+    f_p = composicion['proteina'] / 100
+    f_g = composicion['grasa'] / 100
+    f_c = composicion['carbohidrato'] / 100
+    f_f = composicion['fibra'] / 100
+    f_z = composicion['cenizas'] / 100
+
     k_val = (Xu * k_agua(t)) + \
             (Xi * k_agua(t - 0.0001)) + \
-            (composicion['proteina'] / 100 * k_proteina(t)) + \
-            (composicion['grasa'] / 100 * k_grasa(t)) + \
-            (composicion['carbohidrato'] / 100 * k_carbohidrato(t)) + \
-            (composicion['fibra'] / 100 * k_fibra(t)) + \
-            (composicion['cenizas'] / 100 * k_cenizas(t))
+            (f_p * k_proteina(t)) + \
+            (f_g * k_grasa(t)) + \
+            (f_c * k_carbohidrato(t)) + \
+            (f_f * k_fibra(t)) + \
+            (f_z * k_cenizas(t))
     return k_val
 
 def calcular_alpha_alimento(t, composicion, Tf_input):
     densidad = calcular_densidad_alimento(t, composicion, Tf_input)
     cp = calcular_cp_alimento(t, composicion, Tf_input)
     k = calcular_k_alimento(t, composicion, Tf_input)
-    if densidad * cp == 0: # Evitar división por cero
+    if densidad * cp == 0:
         return 0
     return k / (densidad * cp)
 
 # --- Funciones de Cálculo de Procesos ---
 
 # Coeficientes A1 y lambda1 para Heisler (Primer término)
-# Estos valores deben ser consistentes con tablas o soluciones de ecuaciones trascendentales.
-# Se agrupan por geometría y rango de Bi. Se podrían hacer interpolaciones más precisas.
+# ... (mantener la función get_heisler_coeffs_actualizada) ...
+# Esta función permanece igual que en el código anterior.
 def get_heisler_coeffs(geometry, bi):
     if geometry == 'Placa Plana':
-        # Valores aproximados para placa plana
         if bi <= 0.01: return 1.0000, 0.0998
         if bi <= 0.02: return 1.0000, 0.1412
         if bi <= 0.03: return 1.0001, 0.1730
@@ -149,11 +228,9 @@ def get_heisler_coeffs(geometry, bi):
         if bi <= 4.0: return 1.0567, 1.6961
         if bi <= 5.0: return 1.0612, 1.8174
         if bi <= 10.0: return 1.0700, 2.0729
-        # Para Bi muy grandes (convección infinita), A1=1, lambda1=pi/2
-        return 1.2732, 1.5708 # Límite para Bi -> inf (A1=4/pi, lambda1=pi/2)
+        return 1.2732, 1.5708
 
     elif geometry == 'Cilindro':
-        # Valores aproximados para cilindro
         if bi <= 0.01: return 1.0000, 0.1412
         if bi <= 0.02: return 1.0001, 0.1995
         if bi <= 0.03: return 1.0002, 0.2449
@@ -179,11 +256,9 @@ def get_heisler_coeffs(geometry, bi):
         if bi <= 4.0: return 1.0514, 2.0620
         if bi <= 5.0: return 1.0538, 2.1793
         if bi <= 10.0: return 1.0594, 2.4048
-        # Para Bi muy grandes (convección infinita), A1=1.6018, lambda1=2.4048
-        return 1.6018, 2.4048 # Límite para Bi -> inf
+        return 1.6018, 2.4048
 
     elif geometry == 'Esfera':
-        # Valores aproximados para esfera
         if bi <= 0.01: return 1.0000, 0.1730
         if bi <= 0.02: return 1.0001, 0.2449
         if bi <= 0.03: return 1.0002, 0.2996
@@ -209,25 +284,22 @@ def get_heisler_coeffs(geometry, bi):
         if bi <= 4.0: return 1.0628, 2.7566
         if bi <= 5.0: return 1.0660, 2.8982
         if bi <= 10.0: return 1.0761, 3.2044
-        # Para Bi muy grandes (convección infinita), A1=1.5708, lambda1=pi
-        return 1.5708, 3.1416 # Límite para Bi -> inf (A1=pi/2, lambda1=pi)
-    return 1.0, 0.0 # Valores por defecto si la geometría no coincide
+        return 1.5708, 3.1416
+    return 1.0, 0.0
 
 # Factor de posición X(x/Lc, lambda1) para Heisler
 def get_heisler_position_factor(geometry, x_over_Lc, lambda1):
     if geometry == 'Placa Plana':
         return np.cos(lambda1 * x_over_Lc)
     elif geometry == 'Cilindro':
-        if lambda1 * x_over_Lc == 0: # Caso especial para el centro del cilindro
+        if lambda1 * x_over_Lc == 0:
             return 1.0
-        return jv(0, lambda1 * x_over_Lc) # J0(lambda1 * x/Lc)
+        return jv(0, lambda1 * x_over_Lc)
     elif geometry == 'Esfera':
-        if lambda1 * x_over_Lc == 0: # Caso especial para el centro de la esfera
+        if lambda1 * x_over_Lc == 0:
             return 1.0
         return np.sin(lambda1 * x_over_Lc) / (lambda1 * x_over_Lc)
-    return 1.0 # Por defecto (centro)
-
-# --- Funciones de Cálculo para la Interfaz ---
+    return 1.0
 
 # Calculo de propiedades del alimento (para mostrar al usuario)
 def calcular_propiedades_alimento(composicion, T_referencia, Tf_input):
@@ -243,17 +315,15 @@ def calcular_temperatura_final_punto_frio(t_segundos, T_inicial_alimento, T_medi
         st.error("Error: La conductividad térmica o el coeficiente de convección no pueden ser cero para calcular el Bi. Por favor, revise las propiedades o los datos de entrada.")
         return None
 
-    Lc = dimension_a # Para Heisler, Lc es el radio o el semi-espesor
+    Lc = dimension_a
     Bi = (h * Lc) / k_alimento_medio
     Fo = (alpha_alimento_medio * t_segundos) / (Lc**2)
 
     A1, lambda1 = get_heisler_coeffs(geometria, Bi)
 
-    # Condición para la validez del primer término de Heisler
     if Fo < 0.2:
         st.warning(f"Advertencia: El número de Fourier (Fo = {Fo:.3f}) es menor que 0.2. La solución del primer término de la serie de Heisler puede no ser precisa. Considere tiempos de proceso más largos.")
 
-    # Ecuación de Heisler para el centro (Theta_0)
     theta_0 = A1 * np.exp(-(lambda1**2) * Fo)
 
     T_final_centro = T_medio + theta_0 * (T_inicial_alimento - T_medio)
@@ -265,21 +335,19 @@ def calcular_tiempo_para_temperatura(T_final_alimento, T_inicial_alimento, T_med
         st.error("Error: La temperatura del medio no puede ser igual a la temperatura inicial del alimento para este cálculo.")
         return None, None, None, None, None
     if T_medio == T_final_alimento:
-        return 0, 0, 0, 0, 0 # Ya está a la temperatura objetivo
+        return 0, 0, 0, 0, 0
 
     Lc = dimension_a
     Bi = (h * Lc) / k_alimento_medio
     A1, lambda1 = get_heisler_coeffs(geometria, Bi)
 
-    # Relación de temperatura no dimensional
     theta_0_target = (T_final_alimento - T_medio) / (T_inicial_alimento - T_medio)
 
-    if theta_0_target <= 0 or theta_0_target >= A1: # Ajuste para logaritmo
+    if theta_0_target <= 0 or theta_0_target >= A1:
          st.error(f"Error: La temperatura final objetivo ({T_final_alimento:.2f}°C) es inalcanzable o ya superada para las condiciones dadas.")
          st.info(f"La relación (Tf-Tinf)/(Ti-Tinf) debe ser menor a A1 ({A1:.4f}) y mayor a 0.")
          return None, None, None, None, None
 
-    # Despejando Fo de la ecuación de Heisler
     try:
         Fo = -np.log(theta_0_target / A1) / (lambda1**2)
     except Exception as e:
@@ -314,10 +382,8 @@ def calcular_temperatura_posicion(t_segundos, T_inicial_alimento, T_medio, alpha
     if Fo < 0.2:
         st.warning(f"Advertencia: El número de Fourier (Fo = {Fo:.3f}) es menor que 0.2. La solución del primer término de la serie de Heisler puede no ser precisa.")
 
-    # Calcular Theta_0 (temperatura no dimensional en el centro)
     theta_0 = A1 * np.exp(-(lambda1**2) * Fo)
 
-    # Calcular Theta(x) (temperatura no dimensional en la posición x)
     x_over_Lc = posicion_x / Lc
     position_factor = get_heisler_position_factor(geometria, x_over_Lc, lambda1)
     theta_x = theta_0 * position_factor
@@ -331,7 +397,6 @@ def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h, k_con
         st.error("Error: La temperatura de congelación del alimento (Tf) debe ser mayor que la temperatura del medio de congelación (Ta) para que la congelación ocurra.")
         return None, None, None, None
 
-    # Factores geométricos P y R para la ecuación de Plank
     if geometria == 'Placa Plana':
         P = 0.5
         R = 0.125
@@ -345,7 +410,6 @@ def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h, k_con
         st.error("Geometría no válida para la ecuación de Plank.")
         return None, None, None, None
 
-    # Asegurarse de que el denominador no sea cero
     if (Tf_input - T_ambiente_congelacion) == 0:
         st.error("Error: La diferencia de temperatura (Tf - Ta) no puede ser cero.")
         return None, None, None, None
@@ -360,6 +424,54 @@ def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h, k_con
     t_minutos = t_segundos / 60
     return t_minutos, P, R, L_efectivo
 
+# Nueva función para calcular PMs
+def calcular_pm_solido_aparente(Tf_input_celsius, agua_porcentaje_inicial):
+    """
+    Calcula el peso molecular aparente del sólido a partir de la temperatura inicial
+    de congelación del alimento (Tf) y su composición de agua.
+    """
+    if agua_porcentaje_inicial >= 100:
+        st.error("El alimento no contiene sólidos para calcular su peso molecular. El porcentaje de agua debe ser menor a 100%.")
+        return None
+
+    Tf_kelvin = Tf_input_celsius + 273.15
+
+    # Paso 1: Calcular XA (fracción molar de agua no congelada o actividad de agua) a Tf
+    # (Usando la ecuación de Clausius-Clapeyron/Raoult)
+    try:
+        ln_XA = (L_molar_fusion_agua / R_gas) * ((1 / T0_ref) - (1 / Tf_kelvin))
+        XA_at_Tf = np.exp(ln_XA)
+    except Exception as e:
+        st.error(f"Error al calcular XA para PMs: {e}. Verifique la temperatura de congelación inicial (Tf).")
+        return None
+
+    # Asegurarse de que XA_at_Tf esté entre 0 y 1. Si Tf_input_celsius es > 0, XA_at_Tf puede ser > 1.
+    XA_at_Tf = max(0.0, min(1.0, XA_at_Tf))
+
+    # Fracciones másicas iniciales
+    m_u0 = agua_porcentaje_inicial / 100.0
+    m_s = 1.0 - m_u0 # Fracción másica de sólidos (1 - fracción de agua inicial)
+
+    # Paso 2: Despejar PM_s de la ecuación XA = (mu/PM_agua) / ((mu/PM_agua) + (ms/PMs))
+    # Aquí, mu es la fracción másica de agua no congelada en el punto de congelación inicial (m_u0)
+
+    # Evitar división por cero o logaritmo de cero/negativo
+    if (1 - XA_at_Tf) <= 1e-9: # Si XA_at_Tf es muy cercano a 1 (agua casi pura o Tf_input muy cerca de 0°C)
+        st.warning("Advertencia: El PM del sólido tiende a infinito (alimento es casi agua pura o Tf es muy cercana a 0°C).")
+        return float('inf') # Retorna infinito si es casi agua pura
+    if m_u0 == 0:
+        st.error("Error: No hay agua en el alimento para calcular la fracción molar de agua no congelada.")
+        return None
+
+    try:
+        PM_s = (XA_at_Tf * m_s * PM_agua) / (m_u0 * (1 - XA_at_Tf))
+    except Exception as e:
+        st.error(f"Error al despejar PM_s: {e}. Puede haber un problema con los valores intermedios (XA o fracciones).")
+        return None
+
+    return PM_s
+
+
 # --- Interfaz de Usuario Streamlit ---
 
 st.title("Calculadora de Procesos Térmicos en Alimentos 🍎")
@@ -371,7 +483,6 @@ Esta aplicación permite calcular propiedades termofísicas de alimentos y simul
 st.sidebar.header("1. Composición del Alimento (%)")
 st.sidebar.markdown("Introduce los porcentajes en peso de cada componente. La suma debe ser 100%.")
 
-# Inputs de composición proximal
 col1, col2 = st.sidebar.columns(2)
 with col1:
     agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
@@ -398,7 +509,6 @@ if total_composicion != 100.0:
 else:
     st.sidebar.success("Suma de composición: 100%. ¡Perfecto!")
 
-# Entrada para la temperatura de congelación inicial (Tf)
 st.sidebar.markdown("---")
 st.sidebar.header("2. Temperatura de Congelación (Tf)")
 Tf_input = st.sidebar.number_input("Temperatura inicial de congelación del alimento (Tf) [ºC]", value=-2.0, step=0.1, help="Punto donde el agua en el alimento comienza a congelarse. Típicamente entre -0.5 y -3 °C.")
@@ -413,7 +523,8 @@ calculation_type = st.radio(
         "Temperatura final en el punto frío (ºC)",
         "Tiempo de proceso para alcanzar una temperatura final (ºC)",
         "Temperatura en una posición específica (X) en el alimento (ºC)",
-        "Tiempo de congelación (min)"
+        "Tiempo de congelación (min)",
+        "Peso Molecular Aparente del Sólido (PMs) [g/mol]" # Nueva opción
     )
 )
 
@@ -450,7 +561,6 @@ elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo d
         st.info("Para esfera, 'Dimensión Característica a' es el radio.")
     dimension_a = st.number_input("Dimensión Característica 'a' [m]", value=0.02, format="%.4f", help="Radio (cilindro, esfera) o semi-espesor (placa).")
 
-    # Evaluar propiedades a una temperatura media representativa para Heisler
     T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
     if T_heisler_props_avg < Tf_input:
         st.warning(f"La temperatura media para las propiedades ({T_heisler_props_avg:.1f}ºC) es menor que la de congelación ({Tf_input:.1f}ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente.")
@@ -474,21 +584,14 @@ elif calculation_type == "Tiempo de congelación (min)":
     T_ambiente_congelacion = st.number_input("Temperatura del Medio de Congelación (Ta) [ºC]", value=-20.0, step=1.0)
     h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", value=20.0, step=1.0, help="Coeficiente de convección para el proceso de congelación.")
 
-    # Evaluar propiedades a una temperatura representativa para k_f y L_e en Plank
-    # Temperatura para k_f: Típicamente a la mitad del rango de congelación, o a -5°C por ejemplo
-    T_kf_plank = min(-5.0, (Tf_input + T_ambiente_congelacion) / 2) # Asegurarse de que esté en el rango de congelación
-    if T_kf_plank > Tf_input: # Ajuste si la media es muy alta
-         T_kf_plank = Tf_input - 2 # Un poco por debajo de Tf
+    T_kf_plank = min(-5.0, (Tf_input + T_ambiente_congelacion) / 2)
+    if T_kf_plank > Tf_input:
+         T_kf_plank = Tf_input - 2
 
     k_alimento_congelado = calcular_k_alimento(T_kf_plank, composicion, Tf_input)
 
-    # Cálculo del calor latente efectivo (Le) para Plank
-    # Se aproxima como el calor latente del agua inicial + calor sensible de agua y sólidos al Tf
-    # L_e = X_agua * L_0 + C_p_no_agua * (Tf - T_final_deseada) + C_p_agua_congelada * (Tf - T_final_deseada)
-    # Sin embargo, Plank se enfoca en el cambio de fase. Una simplificación común es:
-    L_e = (composicion['agua'] / 100) * 333.6e3 # Solo el calor latente de congelación del agua
+    L_e = (composicion['agua'] / 100) * 333.6e3
     st.info(f"Calor latente efectivo (Le) utilizado para Plank: {L_e/1000:.2f} kJ/kg (Basado solo en calor latente del agua).")
-
 
     geometria_plank = st.selectbox(
         "Geometría del Alimento:",
@@ -501,6 +604,9 @@ elif calculation_type == "Tiempo de congelación (min)":
     elif geometria_plank == 'Esfera':
         st.info("Para esfera, 'Dimensión Característica a' es el radio.")
     dimension_a_plank = st.number_input("Dimensión Característica 'a' [m]", value=0.02, format="%.4f")
+
+elif calculation_type == "Peso Molecular Aparente del Sólido (PMs) [g/mol]":
+    st.info("Este cálculo estima el peso molecular promedio del sólido basándose en la temperatura inicial de congelación del alimento y su contenido de agua.")
 
 
 # --- Botón de cálculo y resultados ---
@@ -572,11 +678,20 @@ if st.button("Realizar Cálculo"):
                 st.write(f"**Factor Geométrico P:** {P_plank}")
                 st.write(f"**Factor Geométrico R:** {R_plank}")
 
+        elif calculation_type == "Peso Molecular Aparente del Sólido (PMs) [g/mol]":
+            pm_s_result = calcular_pm_solido_aparente(Tf_input, composicion['agua'])
+            if pm_s_result is not None:
+                if pm_s_result == float('inf'):
+                    st.success(f"Peso Molecular Aparente del Sólido (PMs): **Infinito** (Alimento es casi agua pura o Tf muy cercana a 0°C).")
+                else:
+                    st.success(f"Peso Molecular Aparente del Sólido (PMs): **{pm_s_result:.2f} g/mol**")
+                st.info(f"*(Este valor es una estimación basada en la temperatura inicial de congelación del alimento ({Tf_input:.1f}°C) y la fracción de agua inicial ({composicion['agua']}%) a través de la ecuación de depresión crioscópica.)*")
+
+
 # --- Sección de Información Adicional ---
-st.markdown("---") # Separador visual
+st.markdown("---")
 st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
 
-# Usar st.tabs para organizar el contenido
 tab1, tab2, tab3, tab4 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos", "Ecuaciones Utilizadas"])
 
 with tab1:
@@ -606,9 +721,10 @@ with tab2:
     st.markdown("<h5 style='font-size: 1.2em;'>Referencias Bibliográficas</h5>", unsafe_allow_html=True)
     st.markdown("""
     * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
-    * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
+    * **Singh, R. P., & Heldman, D. D. (2009).** *Introduction to Food Engineering* (4th ed.). Academic Press.
     * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
     * **Geankoplis, C. J. (2003).** *Transport Processes and Separation Process Principles* (4th ed.). Prentice Hall. (Para Ecuación de Plank)
+    * **Fennema, O. R. (Ed.). (1996).** *Food Chemistry* (3rd ed.). Marcel Dekker. (Para Termodinámica de la Congelación)
     """, unsafe_allow_html=True)
 
 with tab3:
@@ -661,19 +777,53 @@ with tab4:
     """)
 
     st.markdown("---")
-    st.markdown("##### 2. Fracción de Hielo")
+    st.markdown("##### 2. Fracción de Hielo y Fracción Molar de Agua No Congelada ($X_A$)")
     st.markdown("""
-    Para temperaturas por debajo del punto de congelación inicial ($T_f$), la **fracción de hielo** ($X_i$) se estima mediante la siguiente relación aproximada, asumiendo un equilibrio termodinámico:
+    Para temperaturas por debajo del punto de congelación inicial ($T_f$), la **fracción de agua no congelada ($X_u$)** se estima a partir de la **fracción molar de agua no congelada ($X_A$)**, que se calcula mediante la siguiente relación termodinámica (ecuación de depresión crioscópica, similar a Clausius-Clapeyron para soluciones ideales):
     """)
     st.latex(r"""
-    X_i = \frac{L_0}{C_{p,\text{agua}} \cdot (T_f - T)} \cdot X_{\text{agua, inicial}}
+    \ln X_A = \frac{\lambda}{R} \left( \frac{1}{T_0} - \frac{1}{T} \right)
     """)
     st.markdown(r"""
-    Donde $L_0$ es el calor latente de fusión del hielo a 0°C (333.6 kJ/kg), $C_{p,\text{agua}}$ es el calor específico del agua líquida (aprox. 4186 J/(kg·K)), $T_f$ es la temperatura inicial de congelación del alimento, $T$ es la temperatura actual y $X_{\text{agua, inicial}}$ es la fracción de agua inicial en el alimento.
+    Donde:
+    * $X_A$: Fracción molar de agua no congelada. Representa la actividad del agua ($a_w$) a la temperatura $T$.
+    * $\lambda$: Calor latente **molar** de fusión del agua (aprox. 6010 J/mol).
+    * $R$: Constante universal de los gases (8.314 J/(mol·K)).
+    * $T_0$: Temperatura de fusión del hielo puro (273.15 K o 0°C).
+    * $T$: Temperatura actual del alimento (en Kelvin).
+
+    A partir de $X_A$, la **fracción de masa de agua no congelada ($m_u$)** se obtiene asumiendo que $X_A$ es la fracción de agua líquida sobre el total de agua inicial ($m_{u0}$).
+    La fracción de hielo ($X_i$) se calcula como la fracción de agua inicial menos la fracción de agua no congelada ($X_i = m_{u0} - X_u$).
     """)
 
     st.markdown("---")
-    st.markdown("##### 3. Ecuación de Plank (Tiempo de Congelación)")
+    st.markdown("##### 3. Peso Molecular Aparente del Sólido ($PM_s$)")
+    st.markdown("""
+    El peso molecular aparente del sólido ($PM_s$) puede ser estimado a partir de la fracción molar de agua no congelada ($X_A$) en el punto de congelación inicial ($T_f$) y la composición inicial del alimento. La relación utilizada es:
+    """)
+    st.latex(r"""
+    X_A = \frac{m_u / PM_{agua}}{m_u / PM_{agua} + m_s / PM_s}
+    """)
+    st.markdown(r"""
+    Donde:
+    * $X_A$: Fracción molar de agua no congelada a la temperatura de congelación inicial ($T_f$). Se calcula a partir de la ecuación anterior.
+    * $m_u$: Fracción de masa de agua **inicial** del alimento (agua no congelada a $T_f$).
+    * $m_s$: Fracción de masa de sólidos totales del alimento ($1 - m_u$).
+    * $PM_{agua}$: Peso molecular del agua (18.015 g/mol).
+    * $PM_s$: Peso molecular aparente del sólido (g/mol).
+
+    Despejando $PM_s$ de esta ecuación obtenemos:
+    """)
+    st.latex(r"""
+    PM_s = \frac{X_A \cdot m_s \cdot PM_{agua}}{m_u (1 - X_A)}
+    """)
+    st.markdown("""
+    Este cálculo proporciona una estimación del peso molecular promedio de los sólidos no acuosos presentes en el alimento, asumiendo un comportamiento ideal de la solución.
+    """)
+
+
+    st.markdown("---")
+    st.markdown("##### 4. Ecuación de Plank (Tiempo de Congelación)")
     st.markdown("""
     El tiempo de congelación se calcula utilizando la **ecuación de Plank**, que es un modelo semi-empírico para el tiempo necesario para congelar un alimento de forma aproximada:
     """)
@@ -700,7 +850,7 @@ with tab4:
     """)
 
     st.markdown("---")
-    st.markdown("##### 4. Ecuaciones de Heisler (Calentamiento/Enfriamiento Transitorio)")
+    st.markdown("##### 5. Ecuaciones de Heisler (Calentamiento/Enfriamiento Transitorio)")
     st.markdown("""
     Para el calentamiento o enfriamiento de un cuerpo, se utiliza el **primer término de la serie de Fourier**, que es una simplificación de las cartas o tablas de Heisler. Esta aproximación es válida cuando el **Número de Fourier ($Fo$) es mayor a 0.2**.
     """)
