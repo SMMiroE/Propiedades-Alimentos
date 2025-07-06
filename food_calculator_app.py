@@ -6,7 +6,6 @@ import pandas as pd
 # --- Configuración de la página de Streamlit ---
 st.set_page_config(
     page_title="Calculadora de Procesos Térmicos en Alimentos",
-    page_icon="🍎",
     layout="wide"
 )
 
