@@ -1,1148 +1,583 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.special import j0 # Importar j0 para cilindros
+from scipy.special import jv # Para funciones de Bessel
+import pandas as pd # Para la tabla de datos de Fo vs Bi
 
-# --- 1. Funciones para calcular la PROPIEDAD DE CADA COMPONENTE en función de la TEMPERATURA ---
+# --- Configuración de la página de Streamlit ---
+st.set_page_config(
+    page_title="Calculadora de Procesos Térmicos en Alimentos",
+    page_icon="🍎",
+    layout="wide"
+)
 
-# --- DENSIDAD (rho) en kg/m^3 ---
+# --- Funciones de Choi y Okos (Propiedades termofísicas) ---
+
+# Propiedades del Agua (valores para agua líquida y hielo)
 def densidad_agua(t):
-    """Calcula la densidad del agua en kg/m^3 a la temperatura t (°C)."""
     if t >= 0: # Agua líquida
         return 997.18 + 3.1439e-3 * t - 3.7574e-3 * t**2
     else: # Hielo
         return 916.89 - 0.13071 * t
 
-def densidad_proteina(t):
-    """Calcula la densidad de la proteína en kg/m^3 a la temperatura t (°C)."""
-    return 1329.9 - 0.5184 * t
-
-def densidad_grasa(t):
-    """Calcula la densidad de la grasa en kg/m^3 a la temperatura t (°C)."""
-    return 925.59 - 0.41757 * t
-
-def densidad_carbohidrato(t):
-    """Calcula la densidad del carbohidrato en kg/m^3 a la temperatura t (°C)."""
-    return 1599.1 - 0.31046 * t
-
-def densidad_fibra(t):
-    """Calcula la densidad de la fibra en kg/m^3 a la temperatura t (°C)."""
-    return 1311.5 - 0.36589 * t
-
-def densidad_cenizas(t):
-    """Calcula la densidad de las cenizas en kg/m^3 a la temperatura t (°C)."""
-    return 2423.8 - 0.28063 * t
-
-# --- CALOR ESPECÍFICO (Cp) en J/(kg·K) o J/(kg·°C) ---
 def cp_agua(t):
-    """Calcula el calor específico del agua en J/(kg·K) a la temperatura t (°C)."""
     if t >= 0: # Agua líquida
         return 4176.2 - 9.0864e-2 * t + 5.4731e-3 * t**2
     else: # Hielo
         return 2062.3 + 6.0769 * t
 
-def cp_proteina(t):
-    """Calcula el calor específico de la proteína en J/(kg·K) a la temperatura t (°C)."""
-    return 2008.2 + 1.2089 * t - 1.3129e-3 * t**2
-
-def cp_grasa(t):
-    """Calcula el calor específico de la grasa en J/(kg·K) a la temperatura t (°C)."""
-    return 1984.2 + 1.4733 * t - 4.8008e-3 * t**2
-
-def cp_carbohidrato(t):
-    """Calcula el calor específico del carbohidrato en J/(kg·K) a la temperatura t (°C)."""
-    return 1548.8 + 1.9625 * t - 5.9399e-3 * t**2
-
-def cp_fibra(t):
-    """Calcula el calor específico de la fibra en J/(kg·K) a la temperatura t (°C)."""
-    return 1845.9 + 1.8306 * t - 4.6509e-3 * t**2
-
-def cp_cenizas(t):
-    """Calcula el calor específico de las cenizas en J/(kg·K) a la temperatura t (°C)."""
-    return 1092.6 + 1.8896 * t - 3.6817e-3 * t**2
-
-# --- CONDUCTIVIDAD TÉRMICA (k) en W/(m·K) ---
 def k_agua(t):
-    """Calcula la conductividad térmica del agua en W/(m·K) a la temperatura t (°C)."""
     if t >= 0: # Agua líquida
         return 0.57109 + 1.7625e-3 * t - 6.7036e-6 * t**2
     else: # Hielo
         return 2.2196 - 6.2489e-3 * t + 1.0154e-4 * t**2
 
-def k_proteina(t):
-    """Calcula la conductividad térmica de la proteína en W/(m·K) a la temperatura t (°C)."""
-    return 0.17881 + 1.1958e-3 * t - 2.7178e-6 * t**2
+# Propiedades de otros componentes (válidas para el rango de temperatura de Choi y Okos)
+def densidad_proteina(t): return 1329.9 - 0.5184 * t
+def cp_proteina(t): return 2008.2 + 1.2089 * t - 1.3129e-3 * t**2
+def k_proteina(t): return 0.17881 + 1.1958e-3 * t - 2.7178e-6 * t**2
 
-def k_grasa(t):
-    """Calcula la conductividad térmica de la grasa en W/(m·K) a la temperatura t (°C)."""
-    return 0.18071 - 2.7604e-4 * t - 1.7749e-7 * t**2
+def densidad_grasa(t): return 925.59 - 0.41757 * t
+def cp_grasa(t): return 1984.2 + 1.4733 * t - 4.8008e-3 * t**2
+def k_grasa(t): return 0.18071 - 2.7604e-4 * t - 1.7749e-7 * t**2
 
-def k_carbohidrato(t):
-    """Calcula la conductividad térmica del carbohidrato en W/(m·K) a la temperatura t (°C)."""
-    return 0.20141 + 1.3874e-3 * t - 4.3312e-6 * t**2
+def densidad_carbohidrato(t): return 1599.1 - 0.31046 * t
+def cp_carbohidrato(t): return 1548.8 + 1.9625 * t - 5.9399e-3 * t**2
+def k_carbohidrato(t): return 0.20141 + 1.3874e-3 * t - 4.3312e-6 * t**2
 
-def k_fibra(t):
-    """Calcula la conductividad térmica de la fibra en W/(m·K) a la temperatura t (°C)."""
-    return 0.18331 + 1.2497e-3 * t - 3.1683e-6 * t**2
+def densidad_fibra(t): return 1311.5 - 0.36589 * t
+def cp_fibra(t): return 1845.9 + 1.8306 * t - 4.6509e-3 * t**2
+def k_fibra(t): return 0.18331 + 1.2497e-3 * t - 3.1683e-6 * t**2
 
-def k_cenizas(t):
-    """Calcula la conductividad térmica de las cenizas en W/(m·K) a la temperatura t (°C)."""
-    return 0.32962 + 1.4011e-3 * t - 2.9069e-6 * t**2
+def densidad_cenizas(t): return 2423.8 - 0.28063 * t
+def cp_cenizas(t): return 1092.6 + 1.8896 * t - 3.6817e-3 * t**2
+def k_cenizas(t): return 0.32962 + 1.4011e-3 * t - 2.9069e-6 * t**2
 
-# --- DIFUSIVIDAD TÉRMICA (alpha) en m^2/s ---
-def alpha_agua(t):
-    """Calcula la difusividad térmica del agua en m^2/s a la temperatura t (°C)."""
-    if t >= 0: # Agua líquida
-        return 1.3168e-7 + 6.2477e-10 * t - 2.4022e-12 * t**2
-    else: # Hielo
-        return 1.1756e-6 - 6.0833e-9 * t + 9.5037e-11 * t**2
-
-def alpha_proteina(t):
-    """Calcula la difusividad térmica de la proteína en m^2/s a la temperatura t (°C)."""
-    return 9.8777e-8 - 1.2569e-11 * t - 3.8286e-14 * t**2
-
-def alpha_grasa(t):
-    """Calcula la difusividad térmica de la grasa en m^2/s a la temperatura t (°C)."""
-    return 6.8714e-8 + 4.7578e-10 * t - 1.4646e-12 * t**2
-
-def alpha_carbohidrato(t):
-    """Calcula la difusividad térmica del carbohidrato en m^2/s a la temperatura t (°C)."""
-    return 8.0842e-8 + 5.3052e-10 * t - 2.3218e-12 * t**2
-
-def alpha_fibra(t):
-    """Calcula la difusividad térmica de la fibra en m^2/s a la temperatura t (°C)."""
-    return 7.3976e-8 + 5.1902e-10 * t - 2.2202e-12 * t**2
-
-def alpha_cenizas(t):
-    """Calcula la difusividad térmica de las cenizas en m^2/s a la temperatura t (°C)."""
-    return 1.2461e-7 + 3.7321e-10 * t - 1.2244e-12 * t**2
-
-# --- Función para calcular la fracción de hielo ---
+# Función para calcular la fracción de hielo (Xi) y agua no congelada (Xu)
 def calcular_fraccion_hielo(t, agua_porcentaje, Tf_input):
-    """
-    Calcula la fracción de hielo (Xi) en un alimento a una temperatura t (°C)
-    dada la temperatura inicial de congelación (Tf_input)
-    y el porcentaje de agua inicial.
-    Asume calor latente de fusión del hielo de 333.6 kJ/kg.
-    """
-    L0 = 333.6 * 1000 # Calor latente de fusión del hielo a 0°C en J/kg (333.6 kJ/kg)
-
-    if t >= Tf_input:
-        return 0.0 # No hay hielo si la temperatura es mayor o igual a la de congelación inicial
-    elif t < Tf_input:
-        # Ecuación simplificada para fracción de hielo (asumiendo propiedades de solución diluida)
-        # Esto es una aproximación y puede variar según el modelo de congelación
-        # Se asume Cp del agua liquida aprox 4186 J/(kg.K) para el termino del calor sensible
-        if (Tf_input - t) == 0: # Evitar división por cero si t == Tf_input
-            return 0.0
-        Xi = (L0 / (4186 * (Tf_input - t))) * (agua_porcentaje / 100) # Ajustado a 4186 J/(kg.K)
-        return min(max(0.0, Xi), agua_porcentaje / 100) # Asegura que esté entre 0 y el contenido total de agua
-    else:
-        return 0.0
-
-
-# --- 2. Funciones para calcular la PROPIEDAD DEL ALIMENTO COMPLETO ---
-
-def calcular_densidad_alimento(t, composicion, Tf_input=0.0): # Tf_input con valor por defecto
-    """
-    Calcula la densidad del alimento usando las ecuaciones de Choi y Okos.
-    Si la temperatura es de congelación, considera la fracción de hielo.
-    Tf_input es la temperatura de inicio de congelación. Si t > Tf_input, no hay hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01: # Usar una pequeña tolerancia para la suma
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
-
-    Xw_inicial = composicion.get('agua', 0) / 100
-    
-    # Solo calcular fracción de hielo si la temperatura está en el rango de congelación
+    L0 = 333.6e3 # Calor latente de fusión del hielo a 0°C en J/kg
+    cp_agua_liquida_ref = 4186 # J/(kg·K) - Cp del agua líquida de referencia
     if t < Tf_input:
-        Xi = calcular_fraccion_hielo(t, composicion.get('agua', 0), Tf_input)
-        Xu = Xw_inicial - Xi
+        # Fracción de hielo (Xi)
+        Xi = (L0 / (cp_agua_liquida_ref * (Tf_input - t))) * (agua_porcentaje / 100)
+        # Asegurarse de que Xi esté entre 0 y 1
+        Xi = max(0, min(1, Xi))
+        # Fracción de agua no congelada (Xu)
+        Xu = (agua_porcentaje / 100) - Xi
     else:
-        Xi = 0.0
-        Xu = Xw_inicial
+        Xi = 0
+        Xu = (agua_porcentaje / 100)
+    return Xi, Xu
 
-    # Convertir porcentajes a fracciones de masa
-    Xp = composicion.get('proteina', 0) / 100
-    Xf = composicion.get('grasa', 0) / 100
-    Xc = composicion.get('carbohidrato', 0) / 100
-    Xfi = composicion.get('fibra', 0) / 100
-    Xa = composicion.get('cenizas', 0) / 100
+# Funciones principales para calcular propiedades del alimento
+def calcular_densidad_alimento(t, composicion, Tf_input):
+    agua_porcentaje = composicion['agua']
+    Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
-    rho_alimento_inv = (Xu / densidad_agua(t)) + \
-                       (Xi / densidad_agua(t)) + \
-                       (Xp / densidad_proteina(t)) + \
-                       (Xf / densidad_grasa(t)) + \
-                       (Xc / densidad_carbohidrato(t)) + \
-                       (Xfi / densidad_fibra(t)) + \
-                       (Xa / densidad_cenizas(t))
-    return 1 / rho_alimento_inv
+    rho_inv = (Xu / densidad_agua(t)) + \
+              (Xi / densidad_agua(t - 0.0001)) + \
+              (composicion['proteina'] / 100 / densidad_proteina(t)) + \
+              (composicion['grasa'] / 100 / densidad_grasa(t)) + \
+              (composicion['carbohidrato'] / 100 / densidad_carbohidrato(t)) + \
+              (composicion['fibra'] / 100 / densidad_fibra(t)) + \
+              (composicion['cenizas'] / 100 / densidad_cenizas(t))
+    return 1 / rho_inv
 
+def calcular_cp_alimento(t, composicion, Tf_input):
+    agua_porcentaje = composicion['agua']
+    Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
-def calcular_cp_alimento(t, composicion, Tf_input=0.0): # Tf_input con valor por defecto
-    """
-    Calcula el calor específico del alimento usando las ecuaciones de Choi y Okos.
-    Si la temperatura es de congelación, considera la fracción de hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01:
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
+    cp_val = (Xu * cp_agua(t)) + \
+             (Xi * cp_agua(t - 0.0001)) + \
+             (composicion['proteina'] / 100 * cp_proteina(t)) + \
+             (composicion['grasa'] / 100 * cp_grasa(t)) + \
+             (composicion['carbohidrato'] / 100 * cp_carbohidrato(t)) + \
+             (composicion['fibra'] / 100 * cp_fibra(t)) + \
+             (composicion['cenizas'] / 100 * cp_cenizas(t))
+    return cp_val
 
-    Xw_inicial = composicion.get('agua', 0) / 100
-    
-    # Solo calcular fracción de hielo si la temperatura está en el rango de congelación
-    if t < Tf_input:
-        Xi = calcular_fraccion_hielo(t, composicion.get('agua', 0), Tf_input)
-        Xu = Xw_inicial - Xi
-    else:
-        Xi = 0.0
-        Xu = Xw_inicial
+def calcular_k_alimento(t, composicion, Tf_input):
+    agua_porcentaje = composicion['agua']
+    Xi, Xu = calcular_fraccion_hielo(t, agua_porcentaje, Tf_input)
 
-    Xp = composicion.get('proteina', 0) / 100
-    Xf = composicion.get('grasa', 0) / 100
-    Xc = composicion.get('carbohidrato', 0) / 100
-    Xfi = composicion.get('fibra', 0) / 100
-    Xa = composicion.get('cenizas', 0) / 100
+    k_val = (Xu * k_agua(t)) + \
+            (Xi * k_agua(t - 0.0001)) + \
+            (composicion['proteina'] / 100 * k_proteina(t)) + \
+            (composicion['grasa'] / 100 * k_grasa(t)) + \
+            (composicion['carbohidrato'] / 100 * k_carbohidrato(t)) + \
+            (composicion['fibra'] / 100 * k_fibra(t)) + \
+            (composicion['cenizas'] / 100 * k_cenizas(t))
+    return k_val
 
-    cp_alimento = (Xu * cp_agua(t)) + \
-                  (Xi * cp_agua(t)) + \
-                  (Xp * cp_proteina(t)) + \
-                  (Xf * cp_grasa(t)) + \
-                  (Xc * cp_carbohidrato(t)) + \
-                  (Xfi * cp_fibra(t)) + \
-                  (Xa * cp_cenizas(t))
-    return cp_alimento
-
-
-def calcular_k_alimento(t, composicion, Tf_input=0.0): # Tf_input con valor por defecto
-    """
-    Calcula la conductividad térmica del alimento usando las ecuaciones de Choi y Okos.
-    Si la temperatura es de congelación, considera la fracción de hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01:
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
-
-    Xw_inicial = composicion.get('agua', 0) / 100
-    
-    # Solo calcular fracción de hielo si la temperatura está en el rango de congelación
-    if t < Tf_input:
-        Xi = calcular_fraccion_hielo(t, composicion.get('agua', 0), Tf_input)
-        Xu = Xw_inicial - Xi
-    else:
-        Xi = 0.0
-        Xu = Xw_inicial
-
-    Xp = composicion.get('proteina', 0) / 100
-    Xf = composicion.get('grasa', 0) / 100
-    Xc = composicion.get('carbohidrato', 0) / 100
-    Xfi = composicion.get('fibra', 0) / 100
-    Xa = composicion.get('cenizas', 0) / 100
-
-    k_alimento = (Xu * k_agua(t)) + \
-                 (Xi * k_agua(t)) + \
-                 (Xp * k_proteina(t)) + \
-                 (Xf * k_grasa(t)) + \
-                 (Xc * k_carbohidrato(t)) + \
-                 (Xfi * k_fibra(t)) + \
-                 (Xa * k_cenizas(t))
-    return k_alimento
-
-
-def calcular_alpha_alimento(t, composicion, Tf_input=0.0): # Tf_input con valor por defecto
-    """
-    Calcula la difusividad térmica del alimento usando las ecuaciones de Choi y Okos.
-    Si la temperatura es de congelación, considera la fracción de hielo.
-    """
-    if abs(sum(composicion.values()) - 100) > 0.01:
-        st.error("La suma de los porcentajes de los componentes debe ser 100%. Por favor, verifique.")
-        st.stop()
-
-    # Recalcula las propiedades auxiliares (rho, Cp, k) ya que la difusividad depende de ellas.
-    # Estas funciones internas ya manejan la lógica de Tf_input.
+def calcular_alpha_alimento(t, composicion, Tf_input):
     densidad = calcular_densidad_alimento(t, composicion, Tf_input)
     cp = calcular_cp_alimento(t, composicion, Tf_input)
     k = calcular_k_alimento(t, composicion, Tf_input)
-
     if densidad * cp == 0: # Evitar división por cero
-        return 0.0
+        return 0
     return k / (densidad * cp)
 
-# --- Función para calcular el tiempo de congelación (Ecuación de Plank) ---
-def calcular_tiempo_congelacion(composicion, T0, Ta, h, geometria, dimension_a, Tf_input):
-    """
-    Calcula el tiempo de congelación usando la Ecuación de Plank.
-    :param composicion: Diccionario con porcentajes de los componentes.
-    :param T0: Temperatura inicial del alimento (°C).
-    :param Ta: Temperatura del medio ambiente de congelación (°C).
-    :param h: Coeficiente de transferencia de calor por convección (W/(m²·K)).
-    :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
-    :param dimension_a: Dimensión característica del alimento (m).
-    :param Tf_input: Temperatura inicial de congelación del alimento (°C) ingresada por el usuario.
-    :return: Tiempo de congelación en segundos.
-    """
-    # Constantes
-    L0 = 333.6 * 1000 # Calor latente de fusión del hielo a 0°C en J/kg
+# --- Funciones de Cálculo de Procesos ---
 
-    # Validaciones
-    if Ta >= Tf_input:
-        st.warning("La temperatura del medio ambiente de congelación (Ta) debe ser menor que la temperatura de congelación inicial del alimento (Tf).")
-        return None
-    if h <= 0:
-        st.warning("El coeficiente de transferencia de calor (h) debe ser un valor positivo.")
-        return None
-    if dimension_a <= 0:
-        st.warning("La dimensión característica (a) debe ser un valor positivo.")
+# Coeficientes A1 y lambda1 para Heisler (Primer término)
+# Estos valores deben ser consistentes con tablas o soluciones de ecuaciones trascendentales.
+# Se agrupan por geometría y rango de Bi. Se podrían hacer interpolaciones más precisas.
+def get_heisler_coeffs(geometry, bi):
+    if geometry == 'Placa Plana':
+        # Valores aproximados para placa plana
+        if bi <= 0.01: return 1.0000, 0.0998
+        if bi <= 0.02: return 1.0000, 0.1412
+        if bi <= 0.03: return 1.0001, 0.1730
+        if bi <= 0.04: return 1.0002, 0.1994
+        if bi <= 0.05: return 1.0002, 0.2231
+        if bi <= 0.06: return 1.0003, 0.2446
+        if bi <= 0.07: return 1.0004, 0.2647
+        if bi <= 0.08: return 1.0005, 0.2836
+        if bi <= 0.09: return 1.0006, 0.3015
+        if bi <= 0.1: return 1.0007, 0.3185
+        if bi <= 0.2: return 1.0025, 0.4417
+        if bi <= 0.3: return 1.0050, 0.5423
+        if bi <= 0.4: return 1.0079, 0.6277
+        if bi <= 0.5: return 1.0109, 0.7017
+        if bi <= 0.6: return 1.0139, 0.7674
+        if bi <= 0.7: return 1.0169, 0.8267
+        if bi <= 0.8: return 1.0197, 0.8809
+        if bi <= 0.9: return 1.0224, 0.9308
+        if bi <= 1.0: return 1.0249, 0.9774
+        if bi <= 1.5: return 1.0347, 1.1656
+        if bi <= 2.0: return 1.0416, 1.3149
+        if bi <= 3.0: return 1.0505, 1.5369
+        if bi <= 4.0: return 1.0567, 1.6961
+        if bi <= 5.0: return 1.0612, 1.8174
+        if bi <= 10.0: return 1.0700, 2.0729
+        # Para Bi muy grandes (convección infinita), A1=1, lambda1=pi/2
+        return 1.2732, 1.5708 # Límite para Bi -> inf (A1=4/pi, lambda1=pi/2)
+
+    elif geometry == 'Cilindro':
+        # Valores aproximados para cilindro
+        if bi <= 0.01: return 1.0000, 0.1412
+        if bi <= 0.02: return 1.0001, 0.1995
+        if bi <= 0.03: return 1.0002, 0.2449
+        if bi <= 0.04: return 1.0003, 0.2839
+        if bi <= 0.05: return 1.0004, 0.3187
+        if bi <= 0.06: return 1.0005, 0.3503
+        if bi <= 0.07: return 1.0006, 0.3795
+        if bi <= 0.08: return 1.0007, 0.4067
+        if bi <= 0.09: return 1.0008, 0.4323
+        if bi <= 0.1: return 1.0009, 0.4565
+        if bi <= 0.2: return 1.0040, 0.6698
+        if bi <= 0.3: return 1.0078, 0.8251
+        if bi <= 0.4: return 1.0116, 0.9408
+        if bi <= 0.5: return 1.0151, 1.0322
+        if bi <= 0.6: return 1.0183, 1.1077
+        if bi <= 0.7: return 1.0211, 1.1723
+        if bi <= 0.8: return 1.0236, 1.2289
+        if bi <= 0.9: return 1.0259, 1.2792
+        if bi <= 1.0: return 1.0279, 1.3250
+        if bi <= 1.5: return 1.0360, 1.5317
+        if bi <= 2.0: return 1.0415, 1.6880
+        if bi <= 3.0: return 1.0477, 1.9081
+        if bi <= 4.0: return 1.0514, 2.0620
+        if bi <= 5.0: return 1.0538, 2.1793
+        if bi <= 10.0: return 1.0594, 2.4048
+        # Para Bi muy grandes (convección infinita), A1=1.6018, lambda1=2.4048
+        return 1.6018, 2.4048 # Límite para Bi -> inf
+
+    elif geometry == 'Esfera':
+        # Valores aproximados para esfera
+        if bi <= 0.01: return 1.0000, 0.1730
+        if bi <= 0.02: return 1.0001, 0.2449
+        if bi <= 0.03: return 1.0002, 0.2996
+        if bi <= 0.04: return 1.0003, 0.3465
+        if bi <= 0.05: return 1.0004, 0.3881
+        if bi <= 0.06: return 1.0005, 0.4256
+        if bi <= 0.07: return 1.0006, 0.4599
+        if bi <= 0.08: return 1.0007, 0.4916
+        if bi <= 0.09: return 1.0008, 0.5212
+        if bi <= 0.1: return 1.0009, 0.5490
+        if bi <= 0.2: return 1.0040, 0.8159
+        if bi <= 0.3: return 1.0080, 1.0000
+        if bi <= 0.4: return 1.0120, 1.1448
+        if bi <= 0.5: return 1.0159, 1.2647
+        if bi <= 0.6: return 1.0195, 1.3683
+        if bi <= 0.7: return 1.0229, 1.4601
+        if bi <= 0.8: return 1.0261, 1.5427
+        if bi <= 0.9: return 1.0290, 1.6178
+        if bi <= 1.0: return 1.0318, 1.6862
+        if bi <= 1.5: return 1.0423, 2.0288
+        if bi <= 2.0: return 1.0494, 2.2889
+        if bi <= 3.0: return 1.0577, 2.5704
+        if bi <= 4.0: return 1.0628, 2.7566
+        if bi <= 5.0: return 1.0660, 2.8982
+        if bi <= 10.0: return 1.0761, 3.2044
+        # Para Bi muy grandes (convección infinita), A1=1.5708, lambda1=pi
+        return 1.5708, 3.1416 # Límite para Bi -> inf (A1=pi/2, lambda1=pi)
+    return 1.0, 0.0 # Valores por defecto si la geometría no coincide
+
+# Factor de posición X(x/Lc, lambda1) para Heisler
+def get_heisler_position_factor(geometry, x_over_Lc, lambda1):
+    if geometry == 'Placa Plana':
+        return np.cos(lambda1 * x_over_Lc)
+    elif geometry == 'Cilindro':
+        if lambda1 * x_over_Lc == 0: # Caso especial para el centro del cilindro
+            return 1.0
+        return jv(0, lambda1 * x_over_Lc) # J0(lambda1 * x/Lc)
+    elif geometry == 'Esfera':
+        if lambda1 * x_over_Lc == 0: # Caso especial para el centro de la esfera
+            return 1.0
+        return np.sin(lambda1 * x_over_Lc) / (lambda1 * x_over_Lc)
+    return 1.0 # Por defecto (centro)
+
+# --- Funciones de Cálculo para la Interfaz ---
+
+# Calculo de propiedades del alimento (para mostrar al usuario)
+def calcular_propiedades_alimento(composicion, T_referencia, Tf_input):
+    densidad = calcular_densidad_alimento(T_referencia, composicion, Tf_input)
+    cp = calcular_cp_alimento(T_referencia, composicion, Tf_input)
+    k = calcular_k_alimento(T_referencia, composicion, Tf_input)
+    alpha = calcular_alpha_alimento(T_referencia, composicion, Tf_input)
+    return densidad, cp, k, alpha
+
+# Calculo de temperatura final en el punto frío (Heisler)
+def calcular_temperatura_final_punto_frio(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a):
+    if k_alimento_medio == 0 or h == 0:
+        st.error("Error: La conductividad térmica o el coeficiente de convección no pueden ser cero para calcular el Bi. Por favor, revise las propiedades o los datos de entrada.")
         return None
 
-    # Calcular propiedades promedio del alimento congelado (a una T de referencia)
-    # Usaremos una temperatura ligeramente por debajo de Tf_input para asegurar propiedades de hielo.
-    temp_prop_congelado = max(Ta, Tf_input - 5)
-    rho_f = calcular_densidad_alimento(temp_prop_congelado, composicion, Tf_input)
-    k_f = calcular_k_alimento(temp_prop_congelado, composicion, Tf_input)
+    Lc = dimension_a # Para Heisler, Lc es el radio o el semi-espesor
+    Bi = (h * Lc) / k_alimento_medio
+    Fo = (alpha_alimento_medio * t_segundos) / (Lc**2)
 
-    # Factores de forma P y R según la geometría
-    P, R = 0, 0
-    if geometria == 'Placa':
+    A1, lambda1 = get_heisler_coeffs(geometria, Bi)
+
+    # Condición para la validez del primer término de Heisler
+    if Fo < 0.2:
+        st.warning(f"Advertencia: El número de Fourier (Fo = {Fo:.3f}) es menor que 0.2. La solución del primer término de la serie de Heisler puede no ser precisa. Considere tiempos de proceso más largos.")
+
+    # Ecuación de Heisler para el centro (Theta_0)
+    theta_0 = A1 * np.exp(-(lambda1**2) * Fo)
+
+    T_final_centro = T_medio + theta_0 * (T_inicial_alimento - T_medio)
+    return T_final_centro, Fo, Bi, A1, lambda1
+
+# Cálculo del tiempo para alcanzar una temperatura final (Heisler)
+def calcular_tiempo_para_temperatura(T_final_alimento, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a):
+    if T_medio == T_inicial_alimento:
+        st.error("Error: La temperatura del medio no puede ser igual a la temperatura inicial del alimento para este cálculo.")
+        return None, None, None, None, None
+    if T_medio == T_final_alimento:
+        return 0, 0, 0, 0, 0 # Ya está a la temperatura objetivo
+
+    Lc = dimension_a
+    Bi = (h * Lc) / k_alimento_medio
+    A1, lambda1 = get_heisler_coeffs(geometria, Bi)
+
+    # Relación de temperatura no dimensional
+    theta_0_target = (T_final_alimento - T_medio) / (T_inicial_alimento - T_medio)
+
+    if theta_0_target <= 0 or theta_0_target >= A1: # Ajuste para logaritmo
+         st.error(f"Error: La temperatura final objetivo ({T_final_alimento:.2f}°C) es inalcanzable o ya superada para las condiciones dadas.")
+         st.info(f"La relación (Tf-Tinf)/(Ti-Tinf) debe ser menor a A1 ({A1:.4f}) y mayor a 0.")
+         return None, None, None, None, None
+
+    # Despejando Fo de la ecuación de Heisler
+    try:
+        Fo = -np.log(theta_0_target / A1) / (lambda1**2)
+    except Exception as e:
+        st.error(f"Error al calcular Fo: {e}. Puede que la temperatura objetivo sea inalcanzable con estos parámetros.")
+        return None, None, None, None, None
+
+    if Fo < 0.2:
+        st.warning(f"Advertencia: El número de Fourier calculado (Fo = {Fo:.3f}) es menor que 0.2. La solución del primer término de la serie de Heisler puede no ser precisa.")
+    elif Fo < 0:
+        st.error("Error: El número de Fourier calculado es negativo, lo que indica un problema con las temperaturas de entrada (por ejemplo, el alimento ya está más frío/caliente que el objetivo).")
+        return None, None, None, None, None
+
+    t_segundos = (Fo * (Lc**2)) / alpha_alimento_medio
+    t_minutos = t_segundos / 60
+    return t_minutos, Fo, Bi, A1, lambda1
+
+# Calculo de temperatura en posición específica (Heisler)
+def calcular_temperatura_posicion(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, posicion_x):
+    if posicion_x > dimension_a:
+        st.error("Error: La posición 'x' no puede ser mayor que la dimensión característica 'a' (radio/semiespesor).")
+        return None, None, None, None, None, None
+    if dimension_a == 0:
+        st.error("Error: La dimensión característica 'a' no puede ser cero.")
+        return None, None, None, None, None, None
+
+    Lc = dimension_a
+    Bi = (h * Lc) / k_alimento_medio
+    Fo = (alpha_alimento_medio * t_segundos) / (Lc**2)
+
+    A1, lambda1 = get_heisler_coeffs(geometria, Bi)
+
+    if Fo < 0.2:
+        st.warning(f"Advertencia: El número de Fourier (Fo = {Fo:.3f}) es menor que 0.2. La solución del primer término de la serie de Heisler puede no ser precisa.")
+
+    # Calcular Theta_0 (temperatura no dimensional en el centro)
+    theta_0 = A1 * np.exp(-(lambda1**2) * Fo)
+
+    # Calcular Theta(x) (temperatura no dimensional en la posición x)
+    x_over_Lc = posicion_x / Lc
+    position_factor = get_heisler_position_factor(geometria, x_over_Lc, lambda1)
+    theta_x = theta_0 * position_factor
+
+    T_final_x = T_medio + theta_x * (T_inicial_alimento - T_medio)
+    return T_final_x, Fo, Bi, A1, lambda1, position_factor
+
+# Cálculo del tiempo de congelación (Plank)
+def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h, k_congelado, L_efectivo, geometria, dimension_a):
+    if Tf_input >= T_ambiente_congelacion:
+        st.error("Error: La temperatura de congelación del alimento (Tf) debe ser mayor que la temperatura del medio de congelación (Ta) para que la congelación ocurra.")
+        return None, None, None, None
+
+    # Factores geométricos P y R para la ecuación de Plank
+    if geometria == 'Placa Plana':
         P = 0.5
         R = 0.125
     elif geometria == 'Cilindro':
         P = 0.25
         R = 0.0625
     elif geometria == 'Esfera':
-        P = 0.166667 # 1/6
-        R = 0.041667 # 1/24
+        P = 0.1667
+        R = 0.0417
     else:
-        st.error("Geometría no válida seleccionada para el cálculo del tiempo de congelación.")
-        return None
+        st.error("Geometría no válida para la ecuación de Plank.")
+        return None, None, None, None
 
-    # Calor latente efectivo (considera solo la fracción de agua inicial que se congela)
-    L_efectivo = L0 * (composicion.get('agua', 0) / 100)
+    # Asegurarse de que el denominador no sea cero
+    if (Tf_input - T_ambiente_congelacion) == 0:
+        st.error("Error: La diferencia de temperatura (Tf - Ta) no puede ser cero.")
+        return None, None, None, None
 
-    # Ecuación de Plank (tiempo en segundos)
-    if (Tf_input - Ta) == 0:
-        return float('inf')
+    t_segundos = (L_efectivo / (Tf_input - T_ambiente_congelacion)) * \
+                 ((P * dimension_a / h) + (R * dimension_a**2 / k_congelado))
 
-    tiempo_segundos = (L_efectivo / (Tf_input - Ta)) * ((P * dimension_a / h) + (R * dimension_a**2 / k_f))
+    if t_segundos < 0:
+        st.error("Error: El tiempo de congelación calculado es negativo. Revise las temperaturas o propiedades.")
+        return None, None, None, None
 
-    return tiempo_segundos # Ahora retorna segundos, la conversión a minutos se hará en la UI
+    t_minutos = t_segundos / 60
+    return t_minutos, P, R, L_efectivo
 
+# --- Interfaz de Usuario Streamlit ---
 
-# --- Funciones para el cálculo de tiempo de calentamiento/enfriamiento y perfil de temperatura ---
-
-def get_heisler_coeffs(bi, geometry):
-    """
-    Obtiene los coeficientes A1 y lambda1 para la solución del primer término de Heisler.
-    Basado en tablas de transferencia de calor (aproximaciones para Bi comunes).
-    """
-    # Estos valores son aproximaciones o interpolaciones de tablas estándar.
-    # Para mayor precisión, se requeriría una interpolación más robusta o la solución numérica de las raíces.
-    # Bi = h*Lc/k
-    if geometry == 'Placa':
-        if bi <= 0.01: return 1.0000, 0.0998
-        if bi <= 0.02: return 1.0000, 0.1410
-        if bi <= 0.05: return 1.0001, 0.2217
-        if bi <= 0.1: return 1.0000, 0.3111
-        if bi <= 0.2: return 1.0010, 0.4328
-        if bi <= 0.3: return 1.0024, 0.5218
-        if bi <= 0.4: return 1.0045, 0.5932
-        if bi <= 0.5: return 1.0069, 0.6533
-        if bi <= 0.6: return 1.0095, 0.7051
-        if bi <= 0.7: return 1.0122, 0.7506
-        if bi <= 0.8: return 1.0149, 0.7910
-        if bi <= 0.9: return 1.0177, 0.8274
-        if bi <= 1.0: return 1.0202, 0.8603
-        if bi <= 2.0: return 1.0476, 1.0765
-        if bi <= 3.0: return 1.0699, 1.1925
-        if bi <= 4.0: return 1.0858, 1.2646
-        if bi <= 5.0: return 1.0980, 1.3138
-        if bi <= 10.0: return 1.1578, 1.4289
-        return 1.2732, 1.5708 # Bi -> inf (resistencia conductiva dominante)
-
-    elif geometry == 'Cilindro':
-        if bi <= 0.01: return 1.0000, 0.1412
-        if bi <= 0.02: return 1.0000, 0.1995
-        if bi <= 0.05: return 1.0001, 0.3142
-        if bi <= 0.1: return 1.0000, 0.4417
-        if bi <= 0.2: return 1.0020, 0.6170
-        if bi <= 0.3: return 1.0050, 0.7496
-        if bi <= 0.4: return 1.0089, 0.8516
-        if bi <= 0.5: return 1.0135, 0.9372
-        if bi <= 0.6: return 1.0185, 1.0116
-        if bi <= 0.7: return 1.0238, 1.0776
-        if bi <= 0.8: return 1.0292, 1.1373
-        if bi <= 0.9: return 1.0346, 1.1924
-        if bi <= 1.0: return 1.0399, 1.2427
-        if bi <= 2.0: return 1.0967, 1.5994
-        if bi <= 3.0: return 1.1411, 1.7887
-        if bi <= 4.0: return 1.1750, 1.9081
-        if bi <= 5.0: return 1.2029, 1.9969
-        if bi <= 10.0: return 1.2650, 2.2305
-        return 1.6020, 2.4048 # Bi -> inf
-
-    elif geometry == 'Esfera':
-        if bi <= 0.01: return 1.0000, 0.1730
-        if bi <= 0.02: return 1.0000, 0.2445
-        if bi <= 0.05: return 1.0001, 0.3870
-        if bi <= 0.1: return 1.0000, 0.5482
-        if bi <= 0.2: return 1.0030, 0.7593
-        if bi <= 0.3: return 1.0075, 0.9208
-        if bi <= 0.4: return 1.0132, 1.0528
-        if bi <= 0.5: return 1.0197, 1.1656
-        if bi <= 0.6: return 1.0269, 1.2644
-        if bi <= 0.7: return 1.0345, 1.3525
-        if bi <= 0.8: return 1.0423, 1.4320
-        if bi <= 0.9: return 1.0503, 1.5044
-        if bi <= 1.0: return 1.0581, 1.5708
-        if bi <= 2.0: return 1.1827, 2.0288
-        if bi <= 3.0: return 1.2801, 2.2889
-        if bi <= 4.0: return 1.3473, 2.4556
-        if bi <= 5.0: return 1.3978, 2.5704
-        if bi <= 10.0: return 1.5441, 2.8363
-        return 2.0000, 3.1416 # Bi -> inf
-    return None, None # En caso de geometría no reconocida
-
-
-def calcular_tiempo_transferencia_calor(T_inicial_alimento, T_final_alimento_punto_frio, T_medio, h, k_alimento_medio, alpha_alimento_medio, geometria, dimension_a):
-    """
-    Calcula el tiempo para que el punto frío (centro) del alimento alcance una temperatura objetivo.
-    Usa la solución del primer término de la serie de Fourier (cartas de Heisler).
-    Puede usarse para calentamiento o enfriamiento (si T_medio es < T_inicial_alimento).
-    :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_final_alimento_punto_frio: Temperatura objetivo en el punto frío del alimento (°C).
-    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
-    :param h: Coeficiente de transferencia de calor por convección (W/(m²·K)).
-    :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
-    :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
-    :param dimension_a: Dimensión característica del alimento (m).
-    :return: Tiempo en segundos.
-    """
-    # Validaciones para asegurar la dirección del proceso y evitar divisiones por cero
-    if T_medio == T_inicial_alimento:
-        st.warning("La temperatura del medio no debe ser igual a la temperatura inicial del alimento.")
-        return None
-    if (T_medio > T_inicial_alimento and T_final_alimento_punto_frio < T_inicial_alimento) or \
-       (T_medio < T_inicial_alimento and T_final_alimento_punto_frio > T_inicial_alimento):
-        st.warning("La temperatura final del punto frío no es coherente con la dirección de la transferencia de calor. Asegúrese de que la T final esté entre T inicial y T del medio.")
-        return None
-    if (T_medio > T_inicial_alimento and T_final_alimento_punto_frio > T_medio) or \
-       (T_medio < T_inicial_alimento and T_final_alimento_punto_frio < T_medio):
-        st.warning("La temperatura final del punto frío no puede superar la temperatura del medio.")
-        return None
-    if h <= 0 or k_alimento_medio <= 0 or alpha_alimento_medio <= 0 or dimension_a <= 0:
-        st.warning("Los valores de h, k, alpha y dimensión 'a' deben ser positivos para el cálculo del tiempo.")
-        return None
-
-    # Longitud característica Lc
-    Lc = dimension_a # Para placa es L, para cilindro/esfera es R
-
-    # Número de Biot (Bi)
-    if k_alimento_medio == 0: # Evitar división por cero
-        st.error("Conductividad térmica del alimento es cero, no se puede calcular el número de Biot.")
-        return None
-    Bi = (h * Lc) / k_alimento_medio
-
-    # Obtener coeficientes A1 y lambda1
-    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
-
-    if A1 is None or lambda1 is None:
-        st.error(f"No se encontraron coeficientes A1 y lambda1 para Bi={Bi:.2f} y geometría {geometria}. Revise los rangos.")
-        return None
-
-    # Relación de temperatura no dimensional en el centro (punto frío)
-    theta_0 = (T_final_alimento_punto_frio - T_medio) / (T_inicial_alimento - T_medio)
-
-    # Validaciones adicionales para logaritmo
-    if theta_0 <= 0 or A1 <= 0:
-        st.warning("La relación de temperatura o A1 no son válidos para calcular el tiempo. Revise las temperaturas.")
-        return None
-    if theta_0 / A1 <= 0:
-        st.warning("El argumento del logaritmo es no positivo. Esto puede indicar que la temperatura final deseada es inalcanzable, o que hay un problema con A1. Revise las temperaturas.")
-        return None
-
-    # Calcular el número de Fourier (Fo)
-    if lambda1 == 0: # Evitar división por cero
-        st.warning("Lambda1 es cero, no se puede calcular el número de Fourier.")
-        return None
-    
-    try:
-        Fo = - (1 / (lambda1**2)) * np.log(theta_0 / A1)
-    except Exception as e:
-        st.error(f"Error inesperado al calcular Fo: {e}. Asegúrese de que T_final_alimento_punto_frio sea alcanzable y que las temperaturas sean lógicas.")
-        return None
-
-    # Calcular el tiempo (t) a partir de Fo
-    if alpha_alimento_medio == 0: # Evitar división por cero
-        st.warning("Difusividad térmica del alimento es cero, no se puede calcular el tiempo.")
-        return None
-    
-    tiempo_segundos = (Fo * Lc**2) / alpha_alimento_medio
-    return tiempo_segundos
-
-
-def calcular_perfil_temperatura(t_final_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, num_puntos=50):
-    """
-    Calcula el perfil de temperatura a través del alimento en un tiempo dado.
-    Usa la solución del primer término de la serie de Fourier.
-    :param t_final_segundos: Tiempo final en segundos.
-    :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
-    :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
-    :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param h: Coeficiente de transferencia de calor por convección (W/(m·K)).
-    :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
-    :param dimension_a: Dimensión característica del alimento (m).
-    :param num_puntos: Número de puntos para la gráfica del perfil.
-    :return: Tupla de (posiciones_adimensionales, temperaturas_en_puntos).
-    """
-    Lc = dimension_a
-    
-    if k_alimento_medio == 0:
-        st.error("Conductividad térmica es cero, no se puede calcular el Número de Biot para el perfil.")
-        return None, None
-    Bi = (h * Lc) / k_alimento_medio
-
-    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
-
-    if A1 is None or lambda1 is None:
-        st.error(f"No se pudieron obtener coeficientes A1 y lambda1 para el perfil de temperatura. Bi={Bi:.2f}, Geometría={geometria}")
-        return None, None
-    
-    if alpha_alimento_medio == 0 or Lc == 0:
-        st.error("Difusividad térmica o longitud característica son cero, no se puede calcular el Número de Fourier para el perfil.")
-        return None, None
-
-    Fo = (alpha_alimento_medio * t_final_segundos) / Lc**2
-
-    # Generar puntos de posición adimensional (x/L o r/R)
-    posiciones_adimensionales = np.linspace(0, 1, num_puntos)
-    term_posicion = None # Inicializar para evitar errores de referencia
-
-    if geometria == 'Placa':
-        term_posicion = np.cos(lambda1 * posiciones_adimensionales) / np.cos(lambda1)
-        
-    elif geometria == 'Cilindro':
-        try:
-            # j0 es la función de Bessel de primera clase de orden cero
-            term_posicion = j0(lambda1 * posiciones_adimensionales) / j0(lambda1)
-        except Exception as e:
-            st.error(f"Error al calcular perfil para Cilindro (J0): {e}. Asegúrese de que 'scipy' esté en requirements.txt.")
-            return None, None
-
-    elif geometria == 'Esfera':
-        try:
-            # La expresión para Esfera es (sin(lambda*pos))/(lambda*pos) / (sin(lambda)/lambda)
-            # Primero calculamos el numerador (sin(lambda*r/R) / (lambda*r/R))
-            term_numerador = np.where(lambda1 * posiciones_adimensionales == 0, 1.0, np.sin(lambda1 * posiciones_adimensionales) / (lambda1 * posiciones_adimensionales))
-            
-            # Luego el denominador (sin(lambda)/lambda)
-            term_denominador = np.where(lambda1 == 0, 1.0, np.sin(lambda1) / lambda1)
-
-            if term_denominador == 0: # Evitar división por cero en la normalización
-                st.warning("El término del denominador para Esfera es cero. No se puede calcular el perfil. Revise los valores de lambda1.")
-                return None, None
-            
-            term_posicion = term_numerador / term_denominador
-
-        except Exception as e:
-            st.error(f"Error al calcular el perfil de temperatura para Esfera: {e}. Se requiere un manejo robusto del límite.")
-            return None, None
-    else: # Bloque else final para geometría no válida
-        st.error("Geometría no válida seleccionada para el perfil de temperatura.")
-        return None, None
-
-    # Si por alguna razón term_posicion sigue siendo None (ej. en caso de error en los try/except)
-    if term_posicion is None:
-        return None, None
-
-    # Calcular la temperatura adimensional en cada punto
-    # Theta(x,t) = (T(x,t) - T_inf) / (T_i - T_inf)
-    # Theta(x,t) = A1 * exp(-lambda1^2 * Fo) * X(x/L, lambda1)
-    
-    exp_term = np.exp(-lambda1**2 * Fo)
-
-    theta_x_t = A1 * exp_term * term_posicion
-
-    # Convertir a temperatura real
-    temperaturas_en_puntos = T_medio + theta_x_t * (T_inicial_alimento - T_medio)
-
-    return posiciones_adimensionales, temperaturas_en_puntos
-
-def calcular_temperatura_punto_frio_vs_tiempo(T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, max_tiempo_segundos, num_puntos_tiempo=100):
-    """
-    Calcula la temperatura del punto frío (centro) del alimento a lo largo del tiempo.
-    :return: Tupla de (tiempos_segundos, temperaturas_punto_frio).
-    """
-    Lc = dimension_a
-    if k_alimento_medio == 0:
-        st.error("Conductividad térmica es cero, no se puede calcular el Número de Biot para el perfil de tiempo.")
-        return None, None
-    Bi = (h * Lc) / k_alimento_medio
-
-    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
-
-    if A1 is None or lambda1 is None:
-        st.error(f"No se pudieron obtener coeficientes A1 y lambda1 para el perfil de tiempo. Bi={Bi:.2f}, Geometría={geometria}")
-        return None, None
-    
-    if alpha_alimento_medio == 0 or Lc == 0:
-        st.error("Difusividad térmica o longitud característica son cero, no se puede calcular el Número de Fourier para el perfil de tiempo.")
-        return None, None
-
-    tiempos_segundos = np.linspace(0, max_tiempo_segundos, num_puntos_tiempo)
-    temperaturas_punto_frio = []
-
-    for t_sec in tiempos_segundos:
-        Fo = (alpha_alimento_medio * t_sec) / Lc**2
-        
-        # Theta_0 = (T_0 - T_inf) / (T_i - T_inf)
-        theta_0_t = A1 * np.exp(-lambda1**2 * Fo)
-        
-        T_center = T_medio + theta_0_t * (T_inicial_alimento - T_medio)
-        temperaturas_punto_frio.append(T_center)
-
-    return tiempos_segundos, np.array(temperaturas_punto_frio)
-
-def calcular_temperatura_final_punto_frio(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a):
-    """
-    Calcula la temperatura en el punto frío (centro) del alimento para un tiempo de calentamiento/enfriamiento dado.
-    Usa la solución del primer término de la serie de Fourier (cartas de Heisler).
-    :param t_segundos: Tiempo dado en segundos.
-    :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
-    :param T_medio: Temperatura del medio de calentamiento/enfriamiento (°C).
-    :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
-    :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
-    :param h: Coeficiente de transferencia de calor por convección (W/(m²·K)).
-    :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
-    :param dimension_a: Dimensión característica del alimento (m).
-    :return: Temperatura final en el punto frío del alimento (°C).
-    """
-    Lc = dimension_a
-
-    if k_alimento_medio == 0 or Lc == 0:
-        st.error("Conductividad térmica o longitud característica son cero, no se puede calcular el Número de Biot para la temperatura final.")
-        return None
-    Bi = (h * Lc) / k_alimento_medio
-
-    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
-
-    if A1 is None or lambda1 is None:
-        st.error(f"No se pudieron obtener coeficientes A1 y lambda1 para el cálculo de temperatura final. Bi={Bi:.2f}, Geometría={geometria}")
-        return None
-    
-    if alpha_alimento_medio == 0:
-        st.error("Difusividad térmica del alimento es cero, no se puede calcular el Número de Fourier para la temperatura final.")
-        return None
-
-    # Calcular el número de Fourier (Fo) para el tiempo dado
-    Fo = (alpha_alimento_medio * t_segundos) / Lc**2
-
-    # Calcular la relación de temperatura no dimensional en el centro (Theta_0)
-    # Theta_0 = A1 * exp(-lambda1^2 * Fo)
-    theta_0 = A1 * np.exp(-lambda1**2 * Fo)
-
-    # Convertir a temperatura real en el centro
-    # T_0 = T_inf + Theta_0 * (T_i - T_inf)
-    T_final_punto_frio = T_medio + theta_0 * (T_inicial_alimento - T_medio)
-
-    return T_final_punto_frio
-
-
-# --- CONFIGURACIÓN DE LA INTERFAZ CON STREAMLIT ---
-
-st.set_page_config(
-    page_title="Herramienta de Simulación de Procesos Térmicos en Alimentos",
-    layout="centered",
-    initial_sidebar_state="auto"
-)
-
-# --- Contenido principal de la aplicación ---
-
-# Título principal de la aplicación, centrado
-st.markdown("<h3 style='text-align: center; font-size: 1.8em;'>PROCESOS TÉRMICOS EN ALIMENTOS</h3>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-size: 1.0em;'>Herramienta de simulación</p>", unsafe_allow_html=True)
+st.title("Calculadora de Procesos Térmicos en Alimentos 🍎")
 
 st.markdown("""
-<p style='font-size: 0.9em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>calentamiento y enfriamiento</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
-""", unsafe_allow_html=True)
+Esta aplicación permite calcular propiedades termofísicas de alimentos y simular procesos de calentamiento, enfriamiento y congelación utilizando modelos de la ingeniería de alimentos.
+""")
 
-st.markdown("---") # Separador visual
+st.sidebar.header("1. Composición del Alimento (%)")
+st.sidebar.markdown("Introduce los porcentajes en peso de cada componente. La suma debe ser 100%.")
 
-# --- Sección de Composición Proximal (en la pantalla principal) ---
-st.markdown("<h4 style='font-size: 1.4em;'>Introduce la composición del alimento (%)</h4>", unsafe_allow_html=True)
-col1, col2 = st.columns(2) # Usamos columnas para una mejor organización de inputs
+# Inputs de composición proximal
+col1, col2 = st.sidebar.columns(2)
 with col1:
-    agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1, key="agua_main")
-    proteina = st.number_input("Proteína (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.1, key="proteina_main")
-    grasa = st.number_input("Grasa (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1, key="grasa_main")
+    agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1)
+    proteina = st.number_input("Proteína (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.1)
+    grasa = st.number_input("Grasa (%)", min_value=0.0, max_value=100.0, value=5.0, step=0.1)
 with col2:
-    carbohidrato = st.number_input("Carbohidratos (%)", min_value=0.0, max_value=100.0, value=4.0, step=0.1, key="carbo_main")
-    fibra = st.number_input("Fibra (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="fibra_main")
-    cenizas = st.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1, key="cenizas_main")
+    carbohidrato = st.number_input("Carbohidratos (%)", min_value=0.0, max_value=100.0, value=4.0, step=0.1)
+    fibra = st.number_input("Fibra (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1)
+    cenizas = st.number_input("Cenizas (%)", min_value=0.0, max_value=100.0, value=0.5, step=0.1)
 
-composicion_total = agua + proteina + grasa + carbohidrato + fibra + cenizas
-if abs(composicion_total - 100) > 0.01:
-    st.error("La suma de los porcentajes debe ser 100%. Por favor, ajuste la composición.")
+composicion = {
+    'agua': agua,
+    'proteina': proteina,
+    'grasa': grasa,
+    'carbohidrato': carbohidrato,
+    'fibra': fibra,
+    'cenizas': cenizas
+}
+
+total_composicion = sum(composicion.values())
+
+if total_composicion != 100.0:
+    st.sidebar.error(f"La suma de los porcentajes es {total_composicion:.1f}%. Debe ser 100%.")
 else:
-    st.success("La suma de la composición es 100%. ¡Perfecto!")
+    st.sidebar.success("Suma de composición: 100%. ¡Perfecto!")
 
-st.markdown("---") # Separador visual
+# Entrada para la temperatura de congelación inicial (Tf)
+st.sidebar.markdown("---")
+st.sidebar.header("2. Temperatura de Congelación (Tf)")
+Tf_input = st.sidebar.number_input("Temperatura inicial de congelación del alimento (Tf) [ºC]", value=-2.0, step=0.1, help="Punto donde el agua en el alimento comienza a congelarse. Típicamente entre -0.5 y -3 °C.")
 
-# --- Sección de Selección de Cálculo (en la pantalla principal) ---
-st.markdown("<h4 style='font-size: 1.4em;'>Elige el cálculo que quieras realizar:</h4>", unsafe_allow_html=True)
-opcion_calculo = st.radio(
-    " ", # Un espacio para que el label no sea visible pero el radio button funcione
+# Selección del tipo de cálculo
+st.header("3. Elige el cálculo que quieres realizar")
+calculation_type = st.radio(
+    "Selecciona una opción:",
     (
         "Propiedades a T > 0°C",
         "Propiedades a T < 0°C",
-        "Tiempo de calentamiento (min)", # Renombrado
-        "Temperatura final en el punto frío (ºC)", # Renombrado
-        "Tiempo de enfriamiento (T > Tf hasta Tf) (min)", # Nueva opción
+        "Temperatura final en el punto frío (ºC)",
+        "Tiempo de proceso para alcanzar una temperatura final (ºC)",
+        "Temperatura en una posición específica (X) en el alimento (ºC)",
         "Tiempo de congelación (min)"
-    ),
-    key="main_opcion_calculo" # Key único para este radio button
+    )
 )
 
-st.markdown("---") # Separador visual
+# --- Inputs dinámicos según la selección ---
+st.markdown("---")
+st.header("4. Parámetros del Cálculo")
 
-# --- Contenedores para entradas dinámicas ---
-# Default values for inputs that might not be shown, initialized here for scope
-temperatura_calculo = 25.0
-Tf_input = -1.8 # Initial freezing point
-geometria = 'Placa'
-dimension_a = 0.05
-temp_inicial_calentamiento = 20.0 # Renombrada
-temp_final_punto_frio_calentamiento = 85.0 # Renombrada
-T_medio_calentamiento = 95.0 # Renombrada
-h_calentamiento = 100.0 # Renombrada
+if calculation_type == "Propiedades a T > 0°C":
+    T_prop = st.number_input("Temperatura de referencia para propiedades [ºC]", value=20.0, step=1.0)
+    if T_prop < Tf_input:
+        st.warning(f"La temperatura de referencia ({T_prop}ºC) es menor que la temperatura de congelación inicial ({Tf_input}ºC). Considera usar 'Propiedades a T < 0ºC'.")
+    calculated_properties = calcular_propiedades_alimento(composicion, T_prop, Tf_input)
 
-temp_inicial_enfriamiento = 20.0 # Nueva para enfriamiento
-T_medio_enfriamiento = -5.0 # Nueva para enfriamiento
-h_enfriamiento = 50.0 # Nueva para enfriamiento
+elif calculation_type == "Propiedades a T < 0°C":
+    T_prop = st.number_input("Temperatura de referencia para propiedades [ºC]", value=-10.0, step=1.0)
+    if T_prop >= Tf_input:
+        st.warning(f"La temperatura de referencia ({T_prop}ºC) es mayor o igual que la temperatura de congelación inicial ({Tf_input}ºC). Considera usar 'Propiedades a T > 0ºC'.")
+    calculated_properties = calcular_propiedades_alimento(composicion, T_prop, Tf_input)
 
-T0_congelacion = 20.0
-Ta_congelacion = -20.0
-h_congelacion = 15.0
-tiempo_dado_min = 5.0 # Usado tanto para calentamiento como para enfriamiento
+elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo de proceso para alcanzar una temperatura final (ºC)", "Temperatura en una posición específica (X) en el alimento (ºC)"]:
+    T_inicial_alimento = st.number_input("Temperatura Inicial del Alimento [ºC]", value=20.0, step=1.0)
+    T_medio = st.number_input("Temperatura del Medio Calefactor/Enfriador [ºC]", value=80.0, step=1.0)
+    h = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", value=100.0, step=5.0)
 
-# Mostrar los campos de entrada relevantes en la sección principal
-if opcion_calculo == "Propiedades a T > 0°C":
-    st.markdown("<h5 style='font-size: 1.2em;'>Propiedades a T > 0°C</h5>", unsafe_allow_html=True)
-    col_prop1, col_prop2 = st.columns([1,2]) # Una columna para el input, otra para espacio
-    with col_prop1:
-        temperatura_calculo = st.number_input(
-            "Temperatura (°C)",
-            min_value=0.0, max_value=150.0, value=25.0, step=0.1,
-            help="Temperatura a la que se calcularán las propiedades termofísicas. Solo para temperaturas por encima de la congelación."
-        )
+    geometria = st.selectbox(
+        "Geometría del Alimento:",
+        ("Placa Plana", "Cilindro", "Esfera")
+    )
+    if geometria == 'Placa Plana':
+        st.info("Para placa plana, 'Dimensión Característica a' es el semi-espesor.")
+    elif geometria == 'Cilindro':
+        st.info("Para cilindro, 'Dimensión Característica a' es el radio.")
+    elif geometria == 'Esfera':
+        st.info("Para esfera, 'Dimensión Característica a' es el radio.")
+    dimension_a = st.number_input("Dimensión Característica 'a' [m]", value=0.02, format="%.4f", help="Radio (cilindro, esfera) o semi-espesor (placa).")
 
-elif opcion_calculo == "Propiedades a T < 0°C":
-    st.markdown("<h5 style='font-size: 1.2em;'>Propiedades a T < 0°C</h5>", unsafe_allow_html=True)
-    col_prop_neg1, col_prop_neg2 = st.columns(2)
-    with col_prop_neg1:
-        temperatura_calculo = st.number_input(
-            "Temperatura (°C)",
-            min_value=-50.0, max_value=0.0, value=-5.0, step=0.1,
-            help="Temperatura a la que se calcularán las propiedades termofísicas, incluyendo la formación de hielo."
-        )
-    with col_prop_neg2:
-        Tf_input = st.number_input(
-            "Temperatura Inicial de Congelación (Tf) [°C]",
-            min_value=-50.0, max_value=0.0, value=-1.8, step=0.1,
-            help="Temperatura a la que el agua en el alimento comienza a congelarse."
-        )
-    if temperatura_calculo >= Tf_input:
-        st.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
-
-
-elif opcion_calculo == "Tiempo de calentamiento (min)": # Renombrado
-    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros para el cálculo del tiempo de calentamiento</h5>", unsafe_allow_html=True)
-    col_cal1, col_cal2 = st.columns(2)
-    with col_cal1:
-        temp_inicial_calentamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_calentamiento")
-        temp_final_punto_frio_calentamiento = st.number_input("Temperatura Final en el Punto Frío (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1, key="tf_calentamiento")
-        T_medio_calentamiento = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_calentamiento")
-    with col_cal2:
-        h_calentamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_calentamiento")
-        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_calentamiento_main")
-        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_calentamiento_main")
-
-elif opcion_calculo == "Temperatura final en el punto frío (ºC)": # Renombrado
-    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros para el cálculo de temperatura final</h5>", unsafe_allow_html=True)
-    col_tempf1, col_tempf2 = st.columns(2)
-    with col_tempf1:
-        temp_inicial_calentamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_temp_final")
-        tiempo_dado_min = st.number_input("Tiempo de Proceso (min)", min_value=0.01, max_value=1000.0, value=5.0, step=0.1, key="tiempo_dado_temp_final")
-        T_medio_calentamiento = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_temp_final")
-    with col_tempf2:
-        h_calentamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_temp_final")
-        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_temp_final")
-        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_temp_final")
-
-elif opcion_calculo == "Tiempo de enfriamiento (T > Tf hasta Tf) (min)": # ¡Nueva opción!
-    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los Parámetros para el Cálculo del tiempo de enfriamiento</h5>", unsafe_allow_html=True)
-    col_enf1, col_enf2 = st.columns(2)
-    with col_enf1:
-        temp_inicial_enfriamiento = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_enfriamiento")
-        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1, key="tf_enfriamiento_param")
-        T_medio_enfriamiento = st.number_input("Temperatura del Medio Enfriador (°C)", min_value=-60.0, max_value=30.0, value=-5.0, step=0.1, key="tm_enfriamiento")
-    with col_enf2:
-        h_enfriamiento = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=50.0, step=0.1, key="h_enfriamiento")
-        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_enfriamiento_main")
-        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_enfriamiento_main")
+    # Evaluar propiedades a una temperatura media representativa para Heisler
+    T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
+    if T_heisler_props_avg < Tf_input:
+        st.warning(f"La temperatura media para las propiedades ({T_heisler_props_avg:.1f}ºC) es menor que la de congelación ({Tf_input:.1f}ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente.")
     
-    if T_medio_enfriamiento >= Tf_input:
-        st.warning("La temperatura del medio enfriador debe ser menor que la Temperatura Inicial de Congelación (Tf) del alimento para que ocurra el enfriamiento hasta Tf.")
-    if temp_inicial_enfriamiento <= Tf_input:
-        st.warning("La Temperatura Inicial del alimento debe ser mayor que la Temperatura Inicial de Congelación (Tf) del alimento.")
+    alpha_alimento_medio = calcular_alpha_alimento(T_heisler_props_avg, composicion, Tf_input)
+    k_alimento_medio = calcular_k_alimento(T_heisler_props_avg, composicion, Tf_input)
+
+    if calculation_type == "Temperatura final en el punto frío (ºC)":
+        t_minutos = st.number_input("Tiempo de Proceso [min]", value=30.0, min_value=0.0, step=1.0)
+        t_segundos = t_minutos * 60
+
+    elif calculation_type == "Tiempo de proceso para alcanzar una temperatura final (ºC)":
+        T_final_alimento = st.number_input("Temperatura Final deseada en el centro [ºC]", value=60.0, step=1.0)
+
+    elif calculation_type == "Temperatura en una posición específica (X) en el alimento (ºC)":
+        t_minutos = st.number_input("Tiempo de Proceso [min]", value=30.0, min_value=0.0, step=1.0)
+        t_segundos = t_minutos * 60
+        posicion_x = st.number_input("Posición 'x' desde el centro [m]", value=0.01, format="%.4f", help="Distancia desde el centro (0) hasta el borde (a). Debe ser <= 'a'.")
+
+elif calculation_type == "Tiempo de congelación (min)":
+    T_ambiente_congelacion = st.number_input("Temperatura del Medio de Congelación (Ta) [ºC]", value=-20.0, step=1.0)
+    h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", value=20.0, step=1.0, help="Coeficiente de convección para el proceso de congelación.")
+
+    # Evaluar propiedades a una temperatura representativa para k_f y L_e en Plank
+    # Temperatura para k_f: Típicamente a la mitad del rango de congelación, o a -5°C por ejemplo
+    T_kf_plank = min(-5.0, (Tf_input + T_ambiente_congelacion) / 2) # Asegurarse de que esté en el rango de congelación
+    if T_kf_plank > Tf_input: # Ajuste si la media es muy alta
+         T_kf_plank = Tf_input - 2 # Un poco por debajo de Tf
+
+    k_alimento_congelado = calcular_k_alimento(T_kf_plank, composicion, Tf_input)
+
+    # Cálculo del calor latente efectivo (Le) para Plank
+    # Se aproxima como el calor latente del agua inicial + calor sensible de agua y sólidos al Tf
+    # L_e = X_agua * L_0 + C_p_no_agua * (Tf - T_final_deseada) + C_p_agua_congelada * (Tf - T_final_deseada)
+    # Sin embargo, Plank se enfoca en el cambio de fase. Una simplificación común es:
+    L_e = (composicion['agua'] / 100) * 333.6e3 # Solo el calor latente de congelación del agua
+    st.info(f"Calor latente efectivo (Le) utilizado para Plank: {L_e/1000:.2f} kJ/kg (Basado solo en calor latente del agua).")
 
 
-elif opcion_calculo == "Tiempo de congelación (min)":
-    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los Parámetros para el Cálculo del tiempo de congelación</h5>", unsafe_allow_html=True)
-    col_cong1, col_cong2 = st.columns(2)
-    with col_cong1:
-        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1, key="tf_congelacion_param")
-        T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1, key="t0_congelacion")
-        Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1, key="ta_congelacion")
-    with col_cong2:
-        h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1, key="h_congelacion")
-        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
-        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion_main")
+    geometria_plank = st.selectbox(
+        "Geometría del Alimento:",
+        ("Placa Plana", "Cilindro", "Esfera")
+    )
+    if geometria_plank == 'Placa Plana':
+        st.info("Para placa plana, 'Dimensión Característica a' es el semi-espesor.")
+    elif geometria_plank == 'Cilindro':
+        st.info("Para cilindro, 'Dimensión Característica a' es el radio.")
+    elif geometria_plank == 'Esfera':
+        st.info("Para esfera, 'Dimensión Característica a' es el radio.")
+    dimension_a_plank = st.number_input("Dimensión Característica 'a' [m]", value=0.02, format="%.4f")
 
 
-st.markdown("---") # Separador visual
-
-# --- Botón de cálculo (en la pantalla principal) ---
+# --- Botón de cálculo y resultados ---
+st.markdown("---")
 if st.button("Realizar Cálculo"):
-    if abs(composicion_total - 100) > 0.01:
-        st.error("Por favor, corrija la composición antes de calcular (debe sumar 100%).")
+    st.header("5. Resultados del Cálculo")
+    if total_composicion != 100.0:
+        st.error("Por favor, ajusta los porcentajes de composición para que sumen 100% antes de calcular.")
     else:
-        composicion = {
-            'agua': agua,
-            'proteina': proteina,
-            'grasa': grasa,
-            'carbohidrato': carbohidrato,
-            'fibra': fibra,
-            'cenizas': cenizas
-        }
+        if calculation_type == "Propiedades a T > 0°C" or calculation_type == "Propiedades a T < 0°C":
+            densidad_val, cp_val, k_val, alpha_val = calculated_properties
+            st.success(f"Propiedades Termofísicas del Alimento a {T_prop:.1f} °C:")
+            st.write(f"**Densidad (ρ):** {densidad_val:.2f} kg/m³")
+            st.write(f"**Calor Específico (Cp):** {cp_val:.2f} J/(kg·K)")
+            st.write(f"**Conductividad Térmica (k):** {k_val:.4f} W/(m·K)")
+            st.write(f"**Difusividad Térmica (α):** {alpha_val:.2e} m²/s")
 
-        with st.spinner("Calculando..."):
-            try:
-                if opcion_calculo == "Propiedades a T > 0°C":
-                    st.markdown("<h4 style='font-size: 1.4em;'>Resultados de Propiedades Termofísicas</h4>", unsafe_allow_html=True) # Título cambiado
-                    st.markdown("""
-                    <small>Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido y son aproximadas a las propiedades del alimento de composición homogénea.</small>
-                    """, unsafe_allow_html=True) # Leyenda movida y texto modificado
-                    st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
-                    st.markdown("---")
-                    
-                    densidad = calcular_densidad_alimento(temperatura_calculo, composicion, 0.0) 
-                    cp = calcular_cp_alimento(temperatura_calculo, composicion, 0.0)
-                    k = calcular_k_alimento(temperatura_calculo, composicion, 0.0)
-                    alpha = calcular_alpha_alimento(temperatura_calculo, composicion, 0.0)
+        elif calculation_type == "Temperatura final en el punto frío (ºC)":
+            result = calcular_temperatura_final_punto_frio(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a)
+            if result:
+                T_final_centro, Fo, Bi, A1, lambda1 = result
+                st.success(f"Temperatura en el centro al finalizar el proceso: **{T_final_centro:.2f} °C**")
+                st.markdown("---")
+                st.subheader("Parámetros Adicionales del Proceso:")
+                st.write(f"**Número de Biot (Bi):** {Bi:.2f}")
+                st.write(f"**Número de Fourier (Fo):** {Fo:.3f}")
+                st.write(f"**Coeficiente A1:** {A1:.4f}")
+                st.write(f"**Valor propio Lambda1 (λ1):** {lambda1:.4f}")
+                st.write(f"*(Propiedades evaluadas a la temperatura media del proceso: {T_heisler_props_avg:.1f} °C)*")
 
-                    # Formato para la difusividad térmica (VOLVER A e-X)
-                    alpha_str = f"{alpha:.2e}"
-                    
-                    st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
-                    st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
-                    st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
-                    st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
+        elif calculation_type == "Tiempo de proceso para alcanzar una temperatura final (ºC)":
+            result = calcular_tiempo_para_temperatura(T_final_alimento, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a)
+            if result and result[0] is not None:
+                t_minutos, Fo, Bi, A1, lambda1 = result
+                st.success(f"Tiempo necesario para que el centro alcance {T_final_alimento:.1f} °C: **{t_minutos:.2f} minutos**")
+                st.markdown("---")
+                st.subheader("Parámetros Adicionales del Proceso:")
+                st.write(f"**Número de Biot (Bi):** {Bi:.2f}")
+                st.write(f"**Número de Fourier (Fo):** {Fo:.3f}")
+                st.write(f"**Coeficiente A1:** {A1:.4f}")
+                st.write(f"**Valor propio Lambda1 (λ1):** {lambda1:.4f}")
+                st.write(f"*(Propiedades evaluadas a la temperatura media del proceso: {T_heisler_props_avg:.1f} °C)*")
 
-                elif opcion_calculo == "Propiedades a T < 0°C":
-                    st.markdown("<h4 style='font-size: 1.4em;'>Resultados de Propiedades Termofísicas (Con Hielo)</h4>", unsafe_allow_html=True)
-                    st.markdown("""
-                    <small>Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).</small>
-                    """, unsafe_allow_html=True) # Leyenda movida
-                    st.write(f"**Temperatura de Cálculo:** {temperatura_calculo}°C")
-                    st.write(f"**Temperatura Inicial de Congelación (Tf):** {Tf_input}°C")
-                    st.markdown("---")
+        elif calculation_type == "Temperatura en una posición específica (X) en el alimento (ºC)":
+            result = calcular_temperatura_posicion(t_segundos, T_inicial_alimento, T_medio, alpha_alimento_medio, k_alimento_medio, h, geometria, dimension_a, posicion_x)
+            if result:
+                T_final_x, Fo, Bi, A1, lambda1, position_factor = result
+                st.success(f"Temperatura en la posición x={posicion_x:.4f} m al finalizar el proceso: **{T_final_x:.2f} °C**")
+                st.markdown("---")
+                st.subheader("Parámetros Adicionales del Proceso:")
+                st.write(f"**Número de Biot (Bi):** {Bi:.2f}")
+                st.write(f"**Número de Fourier (Fo):** {Fo:.3f}")
+                st.write(f"**Coeficiente A1:** {A1:.4f}")
+                st.write(f"**Valor propio Lambda1 (λ1):** {lambda1:.4f}")
+                st.write(f"**Factor de Posición X(x/Lc, λ1):** {position_factor:.4f}")
+                st.write(f"*(Propiedades evaluadas a la temperatura media del proceso: {T_heisler_props_avg:.1f} °C)*")
 
-                    if temperatura_calculo >= Tf_input:
-                        st.warning("La temperatura de cálculo debe ser menor que la temperatura inicial de congelación (Tf) para que se forme hielo. Ajuste los parámetros.")
-                    else:
-                        densidad = calcular_densidad_alimento(temperatura_calculo, composicion, Tf_input)
-                        cp = calcular_cp_alimento(temperatura_calculo, composicion, Tf_input)
-                        k = calcular_k_alimento(temperatura_calculo, composicion, Tf_input)
-                        alpha = calcular_alpha_alimento(temperatura_calculo, composicion, Tf_input)
-                        
-                        Xi_fraccion = calcular_fraccion_hielo(temperatura_calculo, composicion.get('agua', 0), Tf_input)
-                        
-                        # Formato para la difusividad térmica (VOLVER A e-X)
-                        alpha_str = f"{alpha:.2e}"
+        elif calculation_type == "Tiempo de congelación (min)":
+            result = calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h_congelacion, k_alimento_congelado, L_e, geometria_plank, dimension_a_plank)
+            if result:
+                t_minutos_plank, P_plank, R_plank, Le_plank = result
+                st.success(f"Tiempo de congelación estimado (Plank): **{t_minutos_plank:.2f} minutos**")
+                st.markdown("---")
+                st.subheader("Parámetros Adicionales del Proceso:")
+                st.write(f"**Temperatura del medio (Ta):** {T_ambiente_congelacion:.1f} °C")
+                st.write(f"**Coeficiente de convección (h):** {h_congelacion:.1f} W/(m²·K)")
+                st.write(f"**Conductividad del alimento congelado (kf):** {k_alimento_congelado:.4f} W/(m·K) *(evaluada a {T_kf_plank:.1f}°C)*")
+                st.write(f"**Calor latente efectivo (Le):** {Le_plank/1000:.2f} kJ/kg")
+                st.write(f"**Factor Geométrico P:** {P_plank}")
+                st.write(f"**Factor Geométrico R:** {R_plank}")
 
-                        st.metric(label="Fracción de Hielo (Xi)", value=f"{Xi_fraccion:.3f} (kg hielo/kg alimento)")
-                        st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
-                        st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
-                        st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
-                        st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
-
-
-                elif opcion_calculo == "Tiempo de calentamiento (min)": # Renombrado
-                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Calentamiento</h4>", unsafe_allow_html=True) # Título cambiado
-                    
-                    if temp_inicial_calentamiento >= temp_final_punto_frio_calentamiento:
-                        st.warning("La Temperatura Final deseada en el punto frío debe ser mayor que la Temperatura Inicial del alimento.")
-                    elif T_medio_calentamiento <= temp_final_punto_frio_calentamiento:
-                        st.warning("La Temperatura del Medio Calefactor debe ser estrictamente mayor que la Temperatura Final deseada en el punto frío del alimento.")
-                    else:
-                        # Se usa la temperatura promedio para calcular las propiedades.
-                        temp_media_propiedades_calentamiento = (temp_inicial_calentamiento + T_medio_calentamiento) / 2
-                        
-                        densidad_calc = calcular_densidad_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
-                        cp_calc = calcular_cp_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
-                        k_calc = calcular_k_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
-                        alpha_calc = calcular_alpha_alimento(temp_media_propiedades_calentamiento, composicion, 0.0)
-
-                        tiempo_segundos = calcular_tiempo_transferencia_calor(
-                            temp_inicial_calentamiento, temp_final_punto_frio_calentamiento, T_medio_calentamiento,
-                            h_calentamiento, k_calc, alpha_calc, geometria, dimension_a
-                        )
-
-                        if tiempo_segundos is not None:
-                            tiempo_minutos = tiempo_segundos / 60
-                            st.metric(label="Tiempo de Calentamiento (Punto Frío)", value=f"{tiempo_minutos:.2f} minutos")
-
-                            st.write("---")
-                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Calentamiento</h4>", unsafe_allow_html=True)
-
-                            posiciones, temperaturas = calcular_perfil_temperatura(
-                                tiempo_segundos, temp_inicial_calentamiento, T_medio_calentamiento,
-                                alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
-                            )
-
-                            if posiciones is not None and temperaturas is not None:
-                                fig, ax = plt.subplots(figsize=(8, 5))
-                                ax.plot(posiciones * dimension_a * 100, temperaturas, marker='o', linestyle='-', markersize=4) # Convertir a cm para el eje x
-                                ax.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
-                                ax.set_ylabel("Temperatura (°C)")
-                                ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_minutos:.2f} min)")
-                                ax.grid(True)
-                                min_temp_plot = min(temp_inicial_calentamiento, T_medio_calentamiento, np.min(temperaturas)) - 5
-                                max_temp_plot = max(temp_inicial_calentamiento, T_medio_calentamiento, np.max(temperaturas)) + 5
-                                ax.set_ylim(min_temp_plot, max_temp_plot)
-                                
-                                ax.axhline(y=temp_final_punto_frio_calentamiento, color='r', linestyle='--', label=f'T punto frío ({temp_final_punto_frio_calentamiento}°C)')
-                                ax.legend()
-                                
-                                st.pyplot(fig)
-                                plt.close(fig)
-
-                            else:
-                                st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros.")
-
-                            # Nuevo gráfico: Temperatura del punto frío vs tiempo
-                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
-                            
-                            max_plot_time = tiempo_segundos 
-                            
-                            tiempos_plot, temps_center_plot = calcular_temperatura_punto_frio_vs_tiempo(
-                                temp_inicial_calentamiento, T_medio_calentamiento, alpha_calc, k_calc, h_calentamiento,
-                                geometria, dimension_a, max_tiempo_segundos=max_plot_time
-                            )
-
-                            if tiempos_plot is not None and temps_center_plot is not None:
-                                fig_time, ax_time = plt.subplots(figsize=(8, 5))
-                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Punto Frío') # Tiempo en minutos
-                                ax_time.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='Temperatura del Medio')
-                                ax_time.axhline(y=temp_final_punto_frio_calentamiento, color='r', linestyle='--', label=f'T punto frío objetivo ({temp_final_punto_frio_calentamiento}°C)')
-                                ax_time.set_xlabel("Tiempo (min)")
-                                ax_time.set_ylabel("Temperatura (°C)")
-                                ax_time.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
-                                ax_time.grid(True)
-                                ax_time.legend()
-                                st.pyplot(fig_time)
-                                plt.close(fig_time)
-                            else:
-                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo.")
-
-                        else:
-                            st.warning("No se pudo calcular el tiempo de calentamiento. Revise los datos de entrada para esta sección.")
-                
-                elif opcion_calculo == "Temperatura final en el punto frío (ºC)": # Renombrado
-                    st.markdown("<h4 style='font-size: 1.4em;'>Temperatura Final en el Punto Frío del Alimento</h4>", unsafe_allow_html=True)
-
-                    if T_medio_calentamiento <= temp_inicial_calentamiento:
-                        st.warning("La temperatura del medio calefactor debe ser mayor que la temperatura inicial del alimento para que haya calentamiento.")
-                    else:
-                        temp_media_propiedades = (temp_inicial_calentamiento + T_medio_calentamiento) / 2
-                        
-                        densidad_calc = calcular_densidad_alimento(temp_media_propiedades, composicion, 0.0)
-                        cp_calc = calcular_cp_alimento(temp_media_propiedades, composicion, 0.0)
-                        k_calc = calcular_k_alimento(temp_media_propiedades, composicion, 0.0)
-                        alpha_calc = calcular_alpha_alimento(temp_media_propiedades, composicion, 0.0)
-
-                        tiempo_dado_seg = tiempo_dado_min * 60
-
-                        T_final_calculada = calcular_temperatura_final_punto_frio(
-                            tiempo_dado_seg, temp_inicial_calentamiento, T_medio_calentamiento,
-                            alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
-                        )
-
-                        if T_final_calculada is not None:
-                            st.metric(label="Temperatura Final en el Punto Frío", value=f"{T_final_calculada:.2f} °C")
-                            
-                            # Opcional: Mostrar el perfil de temperatura al tiempo dado
-                            st.write("---")
-                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Tiempo Dado</h4>", unsafe_allow_html=True)
-
-                            posiciones, temperaturas_perfil = calcular_perfil_temperatura(
-                                tiempo_dado_seg, temp_inicial_calentamiento, T_medio_calentamiento,
-                                alpha_calc, k_calc, h_calentamiento, geometria, dimension_a
-                            )
-
-                            if posiciones is not None and temperaturas_perfil is not None:
-                                fig_perfil, ax_perfil = plt.subplots(figsize=(8, 5))
-                                ax_perfil.plot(posiciones * dimension_a * 100, temperaturas_perfil, marker='o', linestyle='-', markersize=4) # Convertir a cm
-                                ax_perfil.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
-                                ax_perfil.set_ylabel("Temperatura (°C)")
-                                ax_perfil.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_dado_min:.2f} min)")
-                                ax_perfil.grid(True)
-                                ax_perfil.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='T Medio')
-                                ax_perfil.axhline(y=T_final_calculada, color='r', linestyle='--', label=f'T Punto Frío ({T_final_calculada:.2f}°C)')
-                                ax_perfil.legend()
-                                st.pyplot(fig_perfil)
-                                plt.close(fig_perfil)
-                            else:
-                                st.warning("No se pudo generar el perfil de temperatura para el tiempo dado.")
-                            
-                            # Opcional: Mostrar la temperatura del punto frío vs tiempo (hasta el tiempo dado)
-                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
-                            tiempos_plot, temps_center_plot = calcular_temperatura_punto_frio_vs_tiempo(
-                                temp_inicial_calentamiento, T_medio_calentamiento, alpha_calc, k_calc, h_calentamiento,
-                                geometria, dimension_a, max_tiempo_segundos=tiempo_dado_seg
-                            )
-                            if tiempos_plot is not None and temps_center_plot is not None:
-                                fig_time, ax_time = plt.subplots(figsize=(8, 5))
-                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Punto Frío') # Tiempo en minutos
-                                ax_time.axhline(y=T_medio_calentamiento, color='g', linestyle=':', label='Temperatura del Medio')
-                                ax_time.axvline(x=tiempo_dado_min, color='blue', linestyle='--', label=f'Tiempo dado ({tiempo_dado_min:.2f} min)')
-                                ax_time.set_xlabel("Tiempo (min)")
-                                ax_time.set_ylabel("Temperatura (°C)")
-                                ax_time.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
-                                ax_time.grid(True)
-                                ax_time.legend()
-                                st.pyplot(fig_time)
-                                plt.close(fig_time)
-                            else:
-                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo.")
-
-                        else:
-                            st.warning("No se pudo calcular la temperatura final en el punto frío. Revise los datos de entrada.")
-
-                elif opcion_calculo == "Tiempo de enfriamiento (T > Tf hasta Tf) (min)": # ¡Nuevo bloque de cálculo!
-                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Enfriamiento (Hasta Tf)</h4>", unsafe_allow_html=True)
-                    
-                    if temp_inicial_enfriamiento <= Tf_input:
-                        st.warning("La Temperatura Inicial del alimento debe ser mayor que la Temperatura Inicial de Congelación (Tf) para que ocurra este tipo de enfriamiento.")
-                    elif T_medio_enfriamiento >= Tf_input:
-                        st.warning("La Temperatura del Medio Enfriador debe ser menor que la Temperatura Inicial de Congelación (Tf) del alimento.")
-                    else:
-                        # Para las propiedades en la fase de enfriamiento hasta Tf, usamos la temperatura media
-                        # entre la inicial del alimento y la de congelación (Tf).
-                        temp_media_propiedades_enf = (temp_inicial_enfriamiento + Tf_input) / 2
-                        
-                        densidad_calc_enf = calcular_densidad_alimento(temp_media_propiedades_enf, composicion, Tf_input)
-                        cp_calc_enf = calcular_cp_alimento(temp_media_propiedades_enf, composicion, Tf_input)
-                        k_calc_enf = calcular_k_alimento(temp_media_propiedades_enf, composicion, Tf_input)
-                        alpha_calc_enf = calcular_alpha_alimento(temp_media_propiedades_enf, composicion, Tf_input)
-
-                        tiempo_enfriamiento_segundos = calcular_tiempo_transferencia_calor(
-                            temp_inicial_enfriamiento, Tf_input, T_medio_enfriamiento,
-                            h_enfriamiento, k_calc_enf, alpha_calc_enf, geometria, dimension_a
-                        )
-
-                        if tiempo_enfriamiento_segundos is not None:
-                            tiempo_enfriamiento_minutos = tiempo_enfriamiento_segundos / 60
-                            st.metric(label=f"Tiempo de Enfriamiento (hasta Tf {Tf_input}°C)", value=f"{tiempo_enfriamiento_minutos:.2f} minutos")
-
-                            st.write("---")
-                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Enfriamiento</h4>", unsafe_allow_html=True)
-
-                            posiciones, temperaturas = calcular_perfil_temperatura(
-                                tiempo_enfriamiento_segundos, temp_inicial_enfriamiento, T_medio_enfriamiento,
-                                alpha_calc_enf, k_calc_enf, h_enfriamiento, geometria, dimension_a
-                            )
-
-                            if posiciones is not None and temperaturas is not None:
-                                fig, ax = plt.subplots(figsize=(8, 5))
-                                ax.plot(posiciones * dimension_a * 100, temperaturas, marker='o', linestyle='-', markersize=4) # Convertir a cm
-                                ax.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
-                                ax.set_ylabel("Temperatura (°C)")
-                                ax.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_enfriamiento_minutos:.2f} min)")
-                                ax.grid(True)
-                                min_temp_plot = min(temp_inicial_enfriamiento, T_medio_enfriamiento, np.min(temperaturas)) - 5
-                                max_temp_plot = max(temp_inicial_enfriamiento, T_medio_enfriamiento, np.max(temperaturas)) + 5
-                                ax.set_ylim(min_temp_plot, max_temp_plot)
-                                
-                                ax.axhline(y=Tf_input, color='r', linestyle='--', label=f'Tf ({Tf_input}°C)')
-                                ax.legend()
-                                
-                                st.pyplot(fig)
-                                plt.close(fig)
-                            else:
-                                st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros.")
-                            
-                            # Gráfico: Temperatura del punto frío vs tiempo
-                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Punto Frío vs. Tiempo</h4>", unsafe_allow_html=True)
-                            
-                            max_plot_time_enf = tiempo_enfriamiento_segundos
-                            tiempos_plot_enf, temps_center_plot_enf = calcular_temperatura_punto_frio_vs_tiempo(
-                                temp_inicial_enfriamiento, T_medio_enfriamiento, alpha_calc_enf, k_calc_enf, h_enfriamiento,
-                                geometria, dimension_a, max_tiempo_segundos=max_plot_time_enf
-                            )
-                            if tiempos_plot_enf is not None and temps_center_plot_enf is not None:
-                                fig_time_enf, ax_time_enf = plt.subplots(figsize=(8, 5))
-                                ax_time_enf.plot(tiempos_plot_enf / 60, temps_center_plot_enf, label='Temperatura del Punto Frío')
-                                ax_time_enf.axhline(y=T_medio_enfriamiento, color='g', linestyle=':', label='Temperatura del Medio')
-                                ax_time_enf.axhline(y=Tf_input, color='r', linestyle='--', label=f'Tf ({Tf_input}°C)')
-                                ax_time_enf.set_xlabel("Tiempo (min)")
-                                ax_time_enf.set_ylabel("Temperatura (°C)")
-                                ax_time_enf.set_title("Temperatura del Punto Frío del Alimento a lo largo del Tiempo")
-                                ax_time_enf.grid(True)
-                                ax_time_enf.legend()
-                                st.pyplot(fig_time_enf)
-                                plt.close(fig_time_enf)
-                            else:
-                                st.warning("No se pudo generar el gráfico de Temperatura del punto frío vs. Tiempo para enfriamiento.")
-
-                        else:
-                            st.warning("No se pudo calcular el tiempo de enfriamiento hasta Tf. Revise los datos de entrada para esta sección.")
-
-
-                elif opcion_calculo == "Tiempo de congelación (min)":
-                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Congelación (Ecuación de Plank)</h4>", unsafe_allow_html=True)
-
-                    tiempo_congelacion_segundos = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
-
-                    if tiempo_congelacion_segundos is not None:
-                        tiempo_congelacion_minutos = tiempo_congelacion_segundos / 60 # Convertir a minutos
-                        st.metric(label="Tiempo de Congelación", value=f"{tiempo_congelacion_minutos:.2f} minutos") # Unidad cambiada
-                    else:
-                        st.warning("No se pudo calcular el tiempo de congelación. Revise los datos de entrada para esta sección.")
-
-            except Exception as e:
-                st.error(f"Ocurrió un error durante el cálculo: {e}")
-                st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
-
-# --- Contenido de la barra lateral ---
-st.sidebar.header("Información de la Aplicación")
-st.sidebar.markdown("""
-Para más detalles sobre la aplicación, su uso y referencias, consulte las pestañas en la sección "Información Adicional" de la pantalla principal.
-""", unsafe_allow_html=True)
-
-# Información de contacto en la barra lateral, con estilo más pequeño
-st.sidebar.markdown("<p style='font-size: 0.8em;'>Dra. Silvia Marcela Miró Erdmann</p>", unsafe_allow_html=True)
-st.sidebar.markdown("<p style='font-size: 0.8em;'>✉️ smmiroer@gmail.com</p>", unsafe_allow_html=True)
-
-# --- Sección de Información Adicional (EN LA PANTALLA PRINCIPAL CON PESTAÑAS) ---
+# --- Sección de Información Adicional ---
 st.markdown("---") # Separador visual
 st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
 
 # Usar st.tabs para organizar el contenido
-tab1, tab2, tab3 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos"])
+tab1, tab2, tab3, tab4 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos", "Ecuaciones Utilizadas"])
 
 with tab1:
     st.markdown("<h5 style='font-size: 1.2em;'>Guía Rápida de Uso</h5>", unsafe_allow_html=True)
@@ -1150,18 +585,21 @@ with tab1:
     Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
     1.  **Define la Composición Proximal:**
-        * En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
+        * En la sección "Introduce la composición del alimento" de la barra lateral izquierda, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
         * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
-    2.  **Selecciona el Tipo de Cálculo:**
-        * En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.
+    2.  **Define la Temperatura de Congelación (Tf):**
+        * En la barra lateral izquierda, introduce la temperatura a la cual el alimento comienza a congelarse.
 
-    3.  **Ingresa los Parámetros Específicos:**
+    3.  **Selecciona el Tipo de Cálculo:**
+        * En la sección "Elige el cálculo que quieras realizar" en la parte central, usa las opciones de radio button para seleccionar la simulación que deseas.
+
+    4.  **Ingresa los Parámetros Específicos:**
         * Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.
 
-    4.  **Realiza el Cálculo:**
+    5.  **Realiza el Cálculo:**
         * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la pantalla principal.
-        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica.
+        * Los resultados se mostrarán en la sección central, junto con parámetros adicionales.
     """, unsafe_allow_html=True)
 
 with tab2:
@@ -1170,6 +608,7 @@ with tab2:
     * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
     * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
     * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
+    * **Geankoplis, C. J. (2003).** *Transport Processes and Separation Process Principles* (4th ed.). Prentice Hall. (Para Ecuación de Plank)
     """, unsafe_allow_html=True)
 
 with tab3:
@@ -1188,3 +627,148 @@ with tab3:
     * **Food Composition Databases (EUFIC - Europa):**
         [https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)
     """, unsafe_allow_html=True)
+
+with tab4:
+    st.markdown("<h5 style='font-size: 1.2em;'>Ecuaciones Utilizadas</h5>", unsafe_allow_html=True)
+    st.markdown("""
+    Esta sección detalla las principales ecuaciones utilizadas en los cálculos de la aplicación.
+    """)
+
+    st.markdown("---")
+    st.markdown("##### 1. Ecuaciones de Choi y Okos (1986) para Propiedades Termofísicas")
+    st.markdown("""
+    Las propiedades termofísicas del alimento ($\rho$, $C_p$, $k$) se estiman a partir de la suma ponderada de las propiedades de sus componentes (agua, proteína, grasa, carbohidratos, fibra, cenizas), evaluadas a la temperatura del proceso.
+
+    *Para temperaturas **por encima de la temperatura de congelación inicial ($T_f$)** (fase no congelada), se utilizan las ecuaciones polinómicas de Choi y Okos para cada componente individual.*
+    *Para temperaturas **por debajo de la temperatura de congelación inicial ($T_f$)** (fase congelada), se considera la formación de hielo. La fracción de agua no congelada ($X_u$) y la fracción de hielo ($X_i$) se calculan primero, y luego las propiedades se determinan ponderando las propiedades del hielo, del agua no congelada y de los sólidos. Las ecuaciones polinómicas para los componentes se ajustan automáticamente para considerar la fase (agua líquida vs. hielo).
+
+    La difusividad térmica ($\alpha$) se calcula a partir de estas propiedades combinadas:
+    """)
+    st.latex(r"""
+    \frac{1}{\rho_{\text{alimento}}} = \sum_{i=1}^{n} \frac{X_i}{\rho_i}
+    """)
+    st.latex(r"""
+    C_{p, \text{alimento}} = \sum_{i=1}^{n} X_i \cdot C_{p,i}
+    """)
+    st.latex(r"""
+    k_{\text{alimento}} = \sum_{i=1}^{n} X_i \cdot k_i
+    """)
+    st.latex(r"""
+    \alpha_{\text{alimento}} = \frac{k_{\text{alimento}}}{\rho_{\text{alimento}} \cdot C_{p, \text{alimento}}}
+    """)
+    st.markdown(r"""
+    Donde $X_i$ es la fracción de masa del componente $i$, y $\rho_i$, $C_{p,i}$, $k_i$ son la densidad, el calor específico y la conductividad térmica del componente $i$, respectivamente.
+    """)
+
+    st.markdown("---")
+    st.markdown("##### 2. Fracción de Hielo")
+    st.markdown("""
+    Para temperaturas por debajo del punto de congelación inicial ($T_f$), la **fracción de hielo** ($X_i$) se estima mediante la siguiente relación aproximada, asumiendo un equilibrio termodinámico:
+    """)
+    st.latex(r"""
+    X_i = \frac{L_0}{C_{p,\text{agua}} \cdot (T_f - T)} \cdot X_{\text{agua, inicial}}
+    """)
+    st.markdown(r"""
+    Donde $L_0$ es el calor latente de fusión del hielo a 0°C (333.6 kJ/kg), $C_{p,\text{agua}}$ es el calor específico del agua líquida (aprox. 4186 J/(kg·K)), $T_f$ es la temperatura inicial de congelación del alimento, $T$ es la temperatura actual y $X_{\text{agua, inicial}}$ es la fracción de agua inicial en el alimento.
+    """)
+
+    st.markdown("---")
+    st.markdown("##### 3. Ecuación de Plank (Tiempo de Congelación)")
+    st.markdown("""
+    El tiempo de congelación se calcula utilizando la **ecuación de Plank**, que es un modelo semi-empírico para el tiempo necesario para congelar un alimento de forma aproximada:
+    """)
+    st.latex(r"""
+    t = \frac{L_e}{T_f - T_a} \left( \frac{P \cdot a}{h} + \frac{R \cdot a^2}{k_f} \right)
+    """)
+    st.markdown(r"""
+    Donde:
+    * $t$: Tiempo de congelación (s)
+    * $L_e$: Calor latente efectivo (J/kg), considerando el calor latente de congelación del agua y el calor sensible involucrado.
+    * $T_f$: Temperatura inicial de congelación del alimento (°C)
+    * $T_a$: Temperatura del medio ambiente de congelación (°C)
+    * $P, R$: Factores geométricos específicos para cada forma (ver tabla)
+    * $a$: Dimensión característica (radio para cilindro/esfera, semiespesor para placa) (m)
+    * $h$: Coeficiente de transferencia de calor por convección (W/(m²·K))
+    * $k_f$: Conductividad térmica del alimento congelado (W/(m·K)), evaluada típicamente a la temperatura media del proceso de congelación.
+    """)
+    st.markdown("""
+    | Geometría | P | R |
+    | :-------- | :- | :- |
+    | Placa Plana | 0.5 | 0.125 |
+    | Cilindro | 0.25 | 0.0625 |
+    | Esfera | 0.1667 | 0.0417 |
+    """)
+
+    st.markdown("---")
+    st.markdown("##### 4. Ecuaciones de Heisler (Calentamiento/Enfriamiento Transitorio)")
+    st.markdown("""
+    Para el calentamiento o enfriamiento de un cuerpo, se utiliza el **primer término de la serie de Fourier**, que es una simplificación de las cartas o tablas de Heisler. Esta aproximación es válida cuando el **Número de Fourier ($Fo$) es mayor a 0.2**.
+    """)
+    st.latex(r"""
+    Fo = \frac{\alpha \cdot t}{L_c^2}
+    """)
+    st.latex(r"""
+    Bi = \frac{h \cdot L_c}{k}
+    """)
+    st.markdown(r"""
+    Donde:
+    * $Fo$: Número de Fourier
+    * $Bi$: Número de Biot
+    * $\alpha$: Difusividad térmica del alimento (m²/s)
+    * $t$: Tiempo (s)
+    * $L_c$: Longitud característica (m)
+    * $h$: Coeficiente de transferencia de calor por convección (W/(m²·K))
+    * $k$: Conductividad térmica del alimento (W/(m·K))
+    """)
+
+    st.markdown("""
+    **a) Temperatura Final en el Punto Frío (Centro, $x=0$):**
+    """)
+    st.markdown("""
+    Esta ecuación se usa para encontrar la temperatura en el centro del alimento a un tiempo dado.
+    """)
+    st.latex(r"""
+    \frac{T_{centro}(t) - T_{\infty}}{T_i - T_{\infty}} = A_1 \cdot \exp(-\lambda_1^2 \cdot Fo)
+    """)
+    st.markdown(r"""
+    Donde:
+    * $T_{centro}(t)$: Temperatura en el centro al tiempo $t$ (°C)
+    * $T_i$: Temperatura inicial uniforme del alimento (°C)
+    * $T_{\infty}$: Temperatura del medio ambiente (°C)
+    * $A_1, \lambda_1$: Coeficientes y valores propios del primer término, dependientes de la geometría y $Bi$. Se obtienen de tablas o soluciones numéricas.
+    """)
+
+    st.markdown("""
+    **b) Tiempo de Proceso para Alcanzar una Temperatura Final:**
+    """)
+    st.markdown("""
+    Para determinar el tiempo ($t$) necesario para que el **centro** del alimento alcance una temperatura específica ($T_{final}$), se despeja $t$ de la ecuación anterior. Esto aplica tanto para **calentamiento** como para **enfriamiento hasta una temperatura superior a la de congelación ($T > T_f$)**:
+    """)
+    st.latex(r"""
+    t = -\frac{L_c^2}{\alpha \cdot \lambda_1^2} \cdot \ln \left( \frac{1}{A_1} \cdot \frac{T_{final} - T_{\infty}}{T_i - T_{\infty}} \right)
+    """)
+
+    st.markdown("""
+    **c) Temperatura en una Posición Específica (X) en el Alimento:**
+    """)
+    st.markdown("""
+    La temperatura en una posición $x$ (distancia desde el centro) se calcula multiplicando la relación de temperatura del centro por un factor de posición $X(x/L_c, \lambda_1)$:
+    """)
+    st.latex(r"""
+    \frac{T(x,t) - T_{\infty}}{T_i - T_{\infty}} = \left( \frac{T_{centro}(t) - T_{\infty}}{T_i - T_{\infty}} \right) \cdot X(x/L_c, \lambda_1)
+    """)
+    st.markdown(r"""
+    Donde $X(x/L_c, \lambda_1)$ es la función de posición del primer término, que depende de la geometría y de la relación $x/L_c$.
+    """)
+
+    st.markdown("""
+    * **Placa Plana:**
+        $X(x/L_c, \lambda_1) = \cos(\lambda_1 \cdot x/L_c)$
+    * **Cilindro Infinito:**
+        $X(x/L_c, \lambda_1) = J_0(\lambda_1 \cdot x/L_c)$ (donde $J_0$ es la función de Bessel de primera clase, orden cero)
+    * **Esfera:**
+        $X(x/L_c, \lambda_1) = \frac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}$
+    """)
+    st.markdown("""
+    *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
+    """)
