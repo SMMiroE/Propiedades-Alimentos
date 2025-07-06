@@ -596,6 +596,51 @@ def calcular_temperatura_centro_vs_tiempo(T_inicial_alimento, T_medio_escaldado,
 
     return tiempos_segundos, np.array(temperaturas_centro)
 
+# --- NUEVA FUNCIÓN: CALCULAR TEMPERATURA FINAL EN EL CENTRO ---
+def calcular_temperatura_final_centro(t_segundos, T_inicial_alimento, T_medio_escaldado, alpha_alimento_medio, k_alimento_medio, h_escaldado, geometria, dimension_a):
+    """
+    Calcula la temperatura en el centro del alimento para un tiempo de calentamiento dado.
+    Usa la solución del primer término de la serie de Fourier (cartas de Heisler).
+    :param t_segundos: Tiempo de calentamiento dado en segundos.
+    :param T_inicial_alimento: Temperatura inicial uniforme del alimento (°C).
+    :param T_medio_escaldado: Temperatura del medio de calentamiento (°C).
+    :param alpha_alimento_medio: Difusividad térmica del alimento a la temperatura media (m²/s).
+    :param k_alimento_medio: Conductividad térmica del alimento a la temperatura media (W/(m·K)).
+    :param h_escaldado: Coeficiente de transferencia de calor por convección para escaldado (W/(m²·K)).
+    :param geometria: Tipo de geometría ('Placa', 'Cilindro', 'Esfera').
+    :param dimension_a: Dimensión característica del alimento (m).
+    :return: Temperatura final en el centro del alimento (°C).
+    """
+    Lc = dimension_a
+
+    if k_alimento_medio == 0 or Lc == 0:
+        st.error("Conductividad térmica o longitud característica son cero, no se puede calcular el Número de Biot para la temperatura final.")
+        return None
+    Bi = (h_escaldado * Lc) / k_alimento_medio
+
+    A1, lambda1 = get_heisler_coeffs(Bi, geometria)
+
+    if A1 is None or lambda1 is None:
+        st.error(f"No se pudieron obtener coeficientes A1 y lambda1 para el cálculo de temperatura final. Bi={Bi:.2f}, Geometría={geometria}")
+        return None
+    
+    if alpha_alimento_medio == 0:
+        st.error("Difusividad térmica del alimento es cero, no se puede calcular el Número de Fourier para la temperatura final.")
+        return None
+
+    # Calcular el número de Fourier (Fo) para el tiempo dado
+    Fo = (alpha_alimento_medio * t_segundos) / Lc**2
+
+    # Calcular la relación de temperatura no dimensional en el centro (Theta_0)
+    # Theta_0 = A1 * exp(-lambda1^2 * Fo)
+    theta_0 = A1 * np.exp(-lambda1**2 * Fo)
+
+    # Convertir a temperatura real en el centro
+    # T_0 = T_inf + Theta_0 * (T_i - T_inf)
+    T_final_centro = T_medio_escaldado + theta_0 * (T_inicial_alimento - T_medio_escaldado)
+
+    return T_final_centro
+
 
 # --- CONFIGURACIÓN DE LA INTERFAZ CON STREAMLIT ---
 
@@ -608,17 +653,17 @@ st.set_page_config(
 # --- Contenido principal de la aplicación ---
 
 # Título principal de la aplicación, centrado
-st.markdown("<h3 style='text-align: center;'>PROCESOS TÉRMICOS EN ALIMENTOS</h3>", unsafe_allow_html=True) # h3 para reducir tamaño
-st.markdown("<p style='text-align: center; font-size: 1em;'>Herramienta de simulación</p>", unsafe_allow_html=True) # p con font-size reducido
+st.markdown("<h3 style='text-align: center; font-size: 1.8em;'>PROCESOS TÉRMICOS EN ALIMENTOS</h3>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-size: 1.0em;'>Herramienta de simulación</p>", unsafe_allow_html=True)
 
 st.markdown("""
-<p style='font-size: 0.85em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>escaldado</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
+<p style='font-size: 0.9em;'>Esta aplicación interactiva permite calcular <b>propiedades termofísicas de alimentos</b> (densidad, calor específico, conductividad y difusividad térmica) basadas en su composición proximal, utilizando las ecuaciones de <b>Choi y Okos (1986)</b>. Además, facilita la estimación del <b>tiempo de congelación</b> mediante la ecuación de Plank y la simulación de procesos de <b>escaldado</b>, incluyendo el cálculo del tiempo necesario y la visualización del <b>perfil de temperatura</b> dentro del alimento, utilizando la solución del primer término de la serie de Fourier.</p>
 """, unsafe_allow_html=True)
 
 st.markdown("---") # Separador visual
 
 # --- Sección de Composición Proximal (en la pantalla principal) ---
-st.markdown("<h5 style='text-align: left;'>Introduce la composición del alimento (%)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+st.markdown("<h4 style='font-size: 1.4em;'>Introduce la composición del alimento (%)</h4>", unsafe_allow_html=True)
 col1, col2 = st.columns(2) # Usamos columnas para una mejor organización de inputs
 with col1:
     agua = st.number_input("Agua (%)", min_value=0.0, max_value=100.0, value=75.0, step=0.1, key="agua_main")
@@ -638,13 +683,14 @@ else:
 st.markdown("---") # Separador visual
 
 # --- Sección de Selección de Cálculo (en la pantalla principal) ---
-st.markdown("<h5 style='text-align: left;'>Elige el cálculo que quieras realizar:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+st.markdown("<h4 style='font-size: 1.4em;'>Elige el cálculo que quieras realizar:</h4>", unsafe_allow_html=True)
 opcion_calculo = st.radio(
     " ", # Un espacio para que el label no sea visible pero el radio button funcione
     (
         "Propiedades a T > 0°C",
         "Propiedades a T < 0°C",
         "Tiempo de escaldado (min)",
+        "Temperatura final en el centro (ºC)", # ¡Nueva opción!
         "Tiempo de congelación (min)"
     ),
     key="main_opcion_calculo" # Key único para este radio button
@@ -652,7 +698,7 @@ opcion_calculo = st.radio(
 
 st.markdown("---") # Separador visual
 
-# --- Contenedores para entradas dinámicas (AHORA EN LA COLUMNA PRINCIPAL) ---
+# --- Contenedores para entradas dinámicas ---
 # Default values for inputs that might not be shown, initialized here for scope
 temperatura_calculo = 25.0
 Tf_input = -1.8 # Initial freezing point
@@ -665,63 +711,73 @@ h_escaldado = 100.0
 T0_congelacion = 20.0
 Ta_congelacion = -20.0
 h_congelacion = 15.0
-
-# **IMPORTANTE:** Inicializar temp_medio_escaldado aquí también
-# para que siempre esté definida antes de cualquier uso posterior
-temp_media_escaldado = 0.0 # Valor predeterminado que se actualizará si se elige escaldado
-
+tiempo_calentamiento_dado_min = 5.0 # Nuevo valor por defecto para la nueva opción
 
 # Mostrar los campos de entrada relevantes en la sección principal
-# Modificación de los títulos de las secciones de parámetros
 if opcion_calculo == "Propiedades a T > 0°C":
-    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
-elif opcion_calculo == "Propiedades a T < 0°C":
-    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
-elif opcion_calculo == "Tiempo de escaldado (min)":
-    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
-elif opcion_calculo == "Tiempo de congelación (min)":
-    st.markdown("<h5 style='text-align: left;'>Parámetros para el cálculo:</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
-
-
-if opcion_calculo == "Propiedades a T > 0°C":
-    temperatura_calculo = st.number_input(
-        "Temperatura (°C)",
-        min_value=0.0, max_value=150.0, value=25.0, step=0.1,
-        help="Temperatura a la que se calcularán las propiedades termofísicas. Solo para temperaturas por encima de la congelación."
-    )
+    st.markdown("<h5 style='font-size: 1.2em;'>Propiedades a T > 0°C</h5>", unsafe_allow_html=True)
+    col_prop1, col_prop2 = st.columns([1,2]) # Una columna para el input, otra para espacio
+    with col_prop1:
+        temperatura_calculo = st.number_input(
+            "Temperatura (°C)",
+            min_value=0.0, max_value=150.0, value=25.0, step=0.1,
+            help="Temperatura a la que se calcularán las propiedades termofísicas. Solo para temperaturas por encima de la congelación."
+        )
 
 elif opcion_calculo == "Propiedades a T < 0°C":
-    temperatura_calculo = st.number_input(
-        "Temperatura (°C)", # Texto cambiado de "Temperatura de Cálculo" a "Temperatura"
-        min_value=-50.0, max_value=0.0, value=-5.0, step=0.1,
-        help="Temperatura a la que se calcularán las propiedades termofísicas, incluyendo la formación de hielo."
-    )
-    Tf_input = st.number_input(
-        "Temperatura Inicial de Congelación (Tf) [°C]",
-        min_value=-50.0, max_value=0.0, value=-1.8, step=0.1,
-        help="Temperatura a la que el agua en el alimento comienza a congelarse."
-    )
+    st.markdown("<h5 style='font-size: 1.2em;'>Propiedades a T < 0°C</h5>", unsafe_allow_html=True)
+    col_prop_neg1, col_prop_neg2 = st.columns(2)
+    with col_prop_neg1:
+        temperatura_calculo = st.number_input(
+            "Temperatura (°C)",
+            min_value=-50.0, max_value=0.0, value=-5.0, step=0.1,
+            help="Temperatura a la que se calcularán las propiedades termofísicas, incluyendo la formación de hielo."
+        )
+    with col_prop_neg2:
+        Tf_input = st.number_input(
+            "Temperatura Inicial de Congelación (Tf) [°C]",
+            min_value=-50.0, max_value=0.0, value=-1.8, step=0.1,
+            help="Temperatura a la que el agua en el alimento comienza a congelarse."
+        )
     if temperatura_calculo >= Tf_input:
         st.warning(f"La temperatura de cálculo ({temperatura_calculo}°C) debe ser menor que la temperatura inicial de congelación ({Tf_input}°C) para observar la formación de hielo.")
 
 
 elif opcion_calculo == "Tiempo de escaldado (min)":
-    temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1) # Texto cambiado
-    temp_final_escaldado = st.number_input("Temperatura Final en el Centro del Alimento (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1) # Texto cambiado
-    T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1) # Texto cambiado
-    h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
-    
-    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado_main")
-    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado_main")
+    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros</h5>", unsafe_allow_html=True)
+    col_esc1, col_esc2 = st.columns(2)
+    with col_esc1:
+        temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1)
+        temp_final_escaldado = st.number_input("Temperatura Final en el Centro del Alimento (°C)", min_value=0.0, max_value=100.0, value=85.0, step=0.1)
+        T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1)
+    with col_esc2:
+        h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1)
+        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_escaldado_main")
+        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_escaldado_main")
+
+elif opcion_calculo == "Temperatura final en el centro (ºC)":
+    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los parámetros para el cálculo de temperatura final</h5>", unsafe_allow_html=True)
+    col_tempf1, col_tempf2 = st.columns(2)
+    with col_tempf1:
+        temp_inicial_escaldado = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=0.0, max_value=100.0, value=20.0, step=0.1, key="ti_temp_final")
+        tiempo_calentamiento_dado_min = st.number_input("Tiempo de Calentamiento (min)", min_value=0.01, max_value=1000.0, value=5.0, step=0.1, key="tiempo_dado_temp_final")
+        T_medio_escaldado = st.number_input("Temperatura del Medio Calefactor (°C)", min_value=0.0, max_value=150.0, value=95.0, step=0.1, key="tm_temp_final")
+    with col_tempf2:
+        h_escaldado = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=5000.0, value=100.0, step=0.1, key="h_temp_final")
+        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_temp_final")
+        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_temp_final")
 
 elif opcion_calculo == "Tiempo de congelación (min)":
-    Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
-    T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
-    Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1) # Texto cambiado
-    h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
-    
-    geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
-    dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion_main")
+    st.markdown("<h5 style='font-size: 1.2em;'>Ingresa los Parámetros para el Cálculo del tiempo de congelación</h5>", unsafe_allow_html=True)
+    col_cong1, col_cong2 = st.columns(2)
+    with col_cong1:
+        Tf_input = st.number_input("Temperatura Inicial de Congelación (Tf) [°C]", min_value=-50.0, max_value=0.0, value=-1.8, step=0.1)
+        T0_congelacion = st.number_input("Temperatura Inicial del Alimento (°C)", min_value=-40.0, max_value=150.0, value=20.0, step=0.1)
+        Ta_congelacion = st.number_input("Temperatura del Medio Refrigerante (°C)", min_value=-60.0, max_value=0.0, value=-20.0, step=0.1)
+    with col_cong2:
+        h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", min_value=1.0, max_value=1000.0, value=15.0, step=0.1)
+        geometria = st.selectbox("Geometría del Alimento", ['Placa', 'Cilindro', 'Esfera'], key="geom_congelacion_main")
+        dimension_a = st.number_input("Dimensión Característica 'a' (m)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f", key="dim_congelacion_main")
 
 
 st.markdown("---") # Separador visual
@@ -743,7 +799,7 @@ if st.button("Realizar Cálculo"):
         with st.spinner("Calculando..."):
             try:
                 if opcion_calculo == "Propiedades a T > 0°C":
-                    st.markdown("<h5 style='text-align: left;'>Propiedades Termofísicas Calculadas</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                    st.markdown("<h4 style='font-size: 1.4em;'>Resultados de Propiedades Termofísicas</h4>", unsafe_allow_html=True) # Título cambiado
                     st.markdown("""
                     <small>Estas propiedades se calculan asumiendo que el agua se encuentra en estado líquido y son aproximadas a las propiedades del alimento de composición homogénea.</small>
                     """, unsafe_allow_html=True) # Leyenda movida y texto modificado
@@ -758,14 +814,13 @@ if st.button("Realizar Cálculo"):
                     # Formato para la difusividad térmica (VOLVER A e-X)
                     alpha_str = f"{alpha:.2e}"
                     
-                    # Usar st.metric con un estilo para el valor para reducir el tamaño
                     st.metric(label="Densidad (ρ)", value=f"{densidad:.2f} kg/m³")
                     st.metric(label="Calor Específico (Cp)", value=f"{cp:.2f} J/(kg·K)")
                     st.metric(label="Conductividad Térmica (k)", value=f"{k:.4f} W/(m·K)")
                     st.metric(label="Difusividad Térmica (α)", value=f"{alpha_str} m²/s") # Notación cambiada
 
                 elif opcion_calculo == "Propiedades a T < 0°C":
-                    st.markdown("<h5 style='text-align: left;'>Resultados de Propiedades Termofísicas (Con Hielo)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                    st.markdown("<h4 style='font-size: 1.4em;'>Resultados de Propiedades Termofísicas (Con Hielo)</h4>", unsafe_allow_html=True)
                     st.markdown("""
                     <small>Estas propiedades se calculan considerando la fracción de hielo presente a la temperatura especificada, basándose en la temperatura inicial de congelación (Tf).</small>
                     """, unsafe_allow_html=True) # Leyenda movida
@@ -794,7 +849,7 @@ if st.button("Realizar Cálculo"):
 
 
                 elif opcion_calculo == "Tiempo de escaldado (min)": # Opción renombrada
-                    st.markdown("<h5 style='text-align: left;'>Tiempo de Escaldado Calculado</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Escaldado</h4>", unsafe_allow_html=True) # Título cambiado
                     # Eliminadas las propiedades termofísicas medias de esta sección
 
                     if temp_inicial_escaldado >= temp_final_escaldado:
@@ -822,7 +877,7 @@ if st.button("Realizar Cálculo"):
                             st.metric(label="Tiempo de Escaldado (Centro)", value=f"{tiempo_escaldado_minutos:.2f} minutos")
 
                             st.write("---")
-                            st.markdown("<h5 style='text-align: left;'>Perfil de Temperatura al Final del Escaldado</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Final del Escaldado</h4>", unsafe_allow_html=True)
 
                             posiciones, temperaturas = calcular_perfil_temperatura(
                                 tiempo_escaldado_segundos, temp_inicial_escaldado, T_medio_escaldado,
@@ -850,7 +905,7 @@ if st.button("Realizar Cálculo"):
                                 st.warning("No se pudo generar el perfil de temperatura. Revise los parámetros de escaldado y asegúrese de que SciPy esté en requirements.txt para Cilindro/Esfera.")
 
                             # Nuevo gráfico: Temperatura del centro vs tiempo
-                            st.markdown("<h5 style='text-align: left;'>Temperatura del Centro vs. Tiempo</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Centro vs. Tiempo</h4>", unsafe_allow_html=True)
                             
                             # MODIFICACIÓN CLAVE AQUÍ:
                             # Se usa el tiempo_escaldado_segundos calculado como el tiempo máximo para la gráfica.
@@ -879,8 +934,80 @@ if st.button("Realizar Cálculo"):
                         else:
                             st.warning("No se pudo calcular el tiempo de escaldado. Revise los datos de entrada para esta sección.")
                 
+                elif opcion_calculo == "Temperatura final en el centro (ºC)": # ¡Nuevo bloque de cálculo!
+                    st.markdown("<h4 style='font-size: 1.4em;'>Temperatura Final en el Centro del Alimento</h4>", unsafe_allow_html=True)
+
+                    if T_medio_escaldado <= temp_inicial_escaldado:
+                        st.warning("La temperatura del medio calefactor debe ser mayor que la temperatura inicial del alimento para que haya calentamiento.")
+                    else:
+                        temp_media_propiedades = (temp_inicial_escaldado + T_medio_escaldado) / 2
+                        
+                        densidad_calc = calcular_densidad_alimento(temp_media_propiedades, composicion, 0.0)
+                        cp_calc = calcular_cp_alimento(temp_media_propiedades, composicion, 0.0)
+                        k_calc = calcular_k_alimento(temp_media_propiedades, composicion, 0.0)
+                        alpha_calc = calcular_alpha_alimento(temp_media_propiedades, composicion, 0.0)
+
+                        tiempo_calentamiento_dado_seg = tiempo_calentamiento_dado_min * 60
+
+                        T_final_calculada = calcular_temperatura_final_centro(
+                            tiempo_calentamiento_dado_seg, temp_inicial_escaldado, T_medio_escaldado,
+                            alpha_calc, k_calc, h_escaldado, geometria, dimension_a
+                        )
+
+                        if T_final_calculada is not None:
+                            st.metric(label="Temperatura Final en el Centro", value=f"{T_final_calculada:.2f} °C")
+                            
+                            # Opcional: Mostrar el perfil de temperatura al tiempo dado
+                            st.write("---")
+                            st.markdown("<h4 style='font-size: 1.4em;'>Perfil de Temperatura al Tiempo Dado</h4>", unsafe_allow_html=True)
+
+                            posiciones, temperaturas_perfil = calcular_perfil_temperatura(
+                                tiempo_calentamiento_dado_seg, temp_inicial_escaldado, T_medio_escaldado,
+                                alpha_calc, k_calc, h_escaldado, geometria, dimension_a
+                            )
+
+                            if posiciones is not None and temperaturas_perfil is not None:
+                                fig_perfil, ax_perfil = plt.subplots(figsize=(8, 5))
+                                ax_perfil.plot(posiciones * dimension_a * 100, temperaturas_perfil, marker='o', linestyle='-', markersize=4) # Convertir a cm
+                                ax_perfil.set_xlabel(f"Posición desde el centro (cm) para {geometria}")
+                                ax_perfil.set_ylabel("Temperatura (°C)")
+                                ax_perfil.set_title(f"Perfil de Temperatura en {geometria} (t = {tiempo_calentamiento_dado_min:.2f} min)")
+                                ax_perfil.grid(True)
+                                ax_perfil.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='T Medio')
+                                ax_perfil.axhline(y=T_final_calculada, color='r', linestyle='--', label=f'T Centro ({T_final_calculada:.2f}°C)')
+                                ax_perfil.legend()
+                                st.pyplot(fig_perfil)
+                                plt.close(fig_perfil)
+                            else:
+                                st.warning("No se pudo generar el perfil de temperatura para el tiempo dado.")
+                            
+                            # Opcional: Mostrar la temperatura del centro vs tiempo (hasta el tiempo dado)
+                            st.markdown("<h4 style='font-size: 1.4em;'>Temperatura del Centro vs. Tiempo</h4>", unsafe_allow_html=True)
+                            tiempos_plot, temps_center_plot = calcular_temperatura_centro_vs_tiempo(
+                                temp_inicial_escaldado, T_medio_escaldado, alpha_calc, k_calc, h_escaldado,
+                                geometria, dimension_a, max_tiempo_segundos=tiempo_calentamiento_dado_seg
+                            )
+                            if tiempos_plot is not None and temps_center_plot is not None:
+                                fig_time, ax_time = plt.subplots(figsize=(8, 5))
+                                ax_time.plot(tiempos_plot / 60, temps_center_plot, label='Temperatura del Centro') # Tiempo en minutos
+                                ax_time.axhline(y=T_medio_escaldado, color='g', linestyle=':', label='Temperatura del Medio')
+                                ax_time.axvline(x=tiempo_calentamiento_dado_min, color='blue', linestyle='--', label=f'Tiempo dado ({tiempo_calentamiento_dado_min:.2f} min)')
+                                ax_time.set_xlabel("Tiempo (min)")
+                                ax_time.set_ylabel("Temperatura (°C)")
+                                ax_time.set_title("Temperatura del Centro del Alimento a lo largo del Tiempo")
+                                ax_time.grid(True)
+                                ax_time.legend()
+                                st.pyplot(fig_time)
+                                plt.close(fig_time)
+                            else:
+                                st.warning("No se pudo generar el gráfico de Temperatura del centro vs. Tiempo.")
+
+                        else:
+                            st.warning("No se pudo calcular la temperatura final en el centro. Revise los datos de entrada.")
+
+
                 elif opcion_calculo == "Tiempo de congelación (min)": # Opción renombrada
-                    st.markdown("<h5 style='text-align: left;'>Tiempo de Congelación (Ecuación de Plank)</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+                    st.markdown("<h4 style='font-size: 1.4em;'>Tiempo de Congelación (Ecuación de Plank)</h4>", unsafe_allow_html=True)
 
                     tiempo_congelacion_segundos = calcular_tiempo_congelacion(composicion, T0_congelacion, Ta_congelacion, h_congelacion, geometria, dimension_a, Tf_input)
 
@@ -894,71 +1021,64 @@ if st.button("Realizar Cálculo"):
                 st.error(f"Ocurrió un error durante el cálculo: {e}")
                 st.warning("Asegúrese de que los valores de entrada sean válidos y que la suma de la composición sea 100%.")
 
-# --- Contenido de la barra lateral (SIMPLIFICADA) ---
+# --- Contenido de la barra lateral ---
 st.sidebar.header("Información de la Aplicación")
 st.sidebar.markdown("""
 Para más detalles sobre la aplicación, su uso y referencias, consulte las pestañas en la sección "Información Adicional" de la pantalla principal.
 """, unsafe_allow_html=True)
 
-# **AGREGAMOS TU INFORMACIÓN DE CONTACTO AQUÍ, CON UN ESTILO MÁS PEQUEÑO**
+# Información de contacto en la barra lateral, con estilo más pequeño
 st.sidebar.markdown("<p style='font-size: 0.8em;'>Dra. Silvia Marcela Miró Erdmann</p>", unsafe_allow_html=True)
 st.sidebar.markdown("<p style='font-size: 0.8em;'>✉️ smmiroer@gmail.com</p>", unsafe_allow_html=True)
 
 # --- Sección de Información Adicional (EN LA PANTALLA PRINCIPAL CON PESTAÑAS) ---
 st.markdown("---") # Separador visual
-st.markdown("<h5 style='text-align: left;'>Información Adicional</h5>", unsafe_allow_html=True) # h5 para reducir tamaño
+st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
 
 # Usar st.tabs para organizar el contenido
 tab1, tab2, tab3 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos"])
 
 with tab1:
-    st.markdown("<h6 style='text-align: left;'>Guía Rápida de Uso</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
+    st.markdown("<h5 style='font-size: 1.2em;'>Guía Rápida de Uso</h5>", unsafe_allow_html=True)
     st.markdown("""
-    <p style='font-size: 0.8em;'>Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:</p>
+    Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
-    <p style='font-size: 0.8em;'>1.  <b>Define la Composición Proximal:</b></p>
-        <ul style='font-size: 0.8em;'>
-            <li>En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de <b>Agua, Proteína, Grasa, Carbohidratos, Fibra</b> y <b>Cenizas</b> de tu alimento.</li>
-            <li>Asegúrate de que la suma total sea <b>100%</b>. La aplicación te indicará si necesitas ajustar los valores.</li>
-        </ul>
+    1.  **Define la Composición Proximal:**
+        * En la sección "Introduce la composición del alimento" de la pantalla principal, ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
+        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
-    <p style='font-size: 0.8em;'>2.  <b>Selecciona el Tipo de Cálculo:</b></p>
-        <ul style='font-size: 0.8em;'>
-            <li>En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.</li>
-        </ul>
+    2.  **Selecciona el Tipo de Cálculo:**
+        * En la sección "Elige el cálculo que quieras realizar" de la pantalla principal, usa las opciones de radio button para elegir la simulación que deseas.
 
-    <p style='font-size: 0.8em;'>3.  <b>Ingresa los Parámetros Específicos:</b></p>
-        <ul style='font-size: 0.8em;'>
-            <li>Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.</li>
-        </ul>
+    3.  **Ingresa los Parámetros Específicos:**
+        * Debajo de la selección de cálculo, aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes, geometría, etc.). Completa todos los datos necesarios.
 
-    <p style='font-size: 0.8em;'>4.  <b>Realiza el Cálculo:</b></p>
-        <ul style='font-size: 0.8em;'>
-            <li>Haz clic en el botón <b>"Realizar Cálculo"</b> en la parte inferior de la pantalla principal.</li>
-            <li>Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).</li>
-        </ul>
+    4.  **Realiza el Cálculo:**
+        * Haz clic en el botón **"Realizar Cálculo"** en la parte inferior de la pantalla principal.
+        * Los resultados se mostrarán en la sección principal, junto con gráficas si aplica (para escaldado).
     """, unsafe_allow_html=True)
 
 with tab2:
-    st.markdown("<h6 style='text-align: left;'>Referencias Bibliográficas</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
+    st.markdown("<h5 style='font-size: 1.2em;'>Referencias Bibliográficas</h5>", unsafe_allow_html=True)
     st.markdown("""
-    <ul style='font-size: 0.8em;'>
-        <li><b>Choi, Y., & Okos, M. R. (1986).</b> <i>Thermal Properties of Foods</i>. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.</li>
-        <li><b>Singh, R. P., & Heldman, D. D. (2009).</b> <i>Introducción a la Ingeniería de los Alimentos</i> (2da ed.). Acribia.</li>
-        <li><b>Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).</b> <i>Fundamentals of Heat and Mass Transfer</i> (6th ed.). John Wiley & Sons.</li>
-    </ul>
+    * **Choi, Y., & Okos, M. R. (1986).** *Thermal Properties of Foods*. In M. R. Okos (Ed.), Physical Properties of Food Materials (pp. 93-112). Purdue University.
+    * **Singh, R. P., & Heldman, D. R. (2009).** *Introducción a la Ingeniería de los Alimentos* (2da ed.). Acribia.
+    * **Incropera, F. P., DeWitt, D. P., Bergman, T. L., & Lavine, A. S. (2007).** *Fundamentals of Heat and Mass Transfer* (6th ed.). John Wiley & Sons.
     """, unsafe_allow_html=True)
 
 with tab3:
-    st.markdown("<h6 style='text-align: left;'>Bases de Datos de Composición de Alimentos</h6>", unsafe_allow_html=True) # h6 para reducir tamaño
+    st.markdown("<h5 style='font-size: 1.2em;'>Bases de Datos de Composición de Alimentos</h5>", unsafe_allow_html=True)
     st.markdown("""
-    <p style='font-size: 0.8em;'>Aquí puedes encontrar enlaces a bases de datos confiables para consultar la composición proximal de diversos alimentos:</p>
+    Aquí puedes encontrar enlaces a bases de datos confiables para consultar la composición proximal de diversos alimentos:
 
-    <ul style='font-size: 0.8em;'>
-        <li><b>USDA FoodData Central (Estados Unidos):</b><br>[https://fdc.nal.usda.gov/](https://fdc.nal.usda.gov/)</li>
-        <li><b>BEDCA - Base de Datos Española de Composición de Alimentos (España):</b><br>[http://www.bedca.net/](http://www.bedca.net/)</li>
-        <li><b>Tabla de Composición de Alimentos del INTA (Argentina):</b><br>[https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos](https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos)</li>
-        <li><b>FAO/INFOODS (Internacional):</b><br>[https://www.fao.org/infoods/infoods/es/](https://www.fao.org/infoods/infoods/es/)</li>
-        <li><b>Food Composition Databases (EUFIC - Europa):</b><br>[https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)</li>
-    </ul>
+    * **USDA FoodData Central (Estados Unidos):**
+        [https://fdc.nal.usda.gov/](https://fdc.nal.usda.gov/)
+    * **BEDCA - Base de Datos Española de Composición de Alimentos (España):**
+        [http://www.bedca.net/](http://www.bedca.net/)
+    * **Tabla de Composición de Alimentos del INTA (Argentina):**
+        [https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos](https://inta.gob.ar/documentos/tablas-de-composicion-de-alimentos)
+    * **FAO/INFOODS (Internacional):**
+        [https://www.fao.org/infoods/infoods/es/](https://www.fao.org/infoods/infoods/es/)
+    * **Food Composition Databases (EUFIC - Europa):**
+        [https://www.eufic.org/en/food-composition/article/food-composition-databases](https://www.eufic.org/en/food-composition/article/food-composition-databases)
     """, unsafe_allow_html=True)
