@@ -998,7 +998,6 @@ with tab4:
    * **Cilindro Infinito:**
         $X(x/L_c, \lambda_1) = J_0(\lambda_1 \cdot x/L_c)$ (donde $J_0$ es la función de Bessel de primera clase, orden cero)
     * **Esfera:**
-        $X(x/L_c, \lambda_1) = \frac{T(x,t) - T_{\infty}}{T_i - T_{\infty}} = \left( \frac{T_{\text{centro}}(t) - T_{\infty}}{T_i - T_{\infty}} \right) \cdot X(x/L_c, \lambda_1)
     """)
     st.latex(r"""
     X(x/L_c, \lambda_1) = \frac{\sin(\lambda_1 \cdot x/L_c)}{\lambda_1 \cdot x/L_c}
