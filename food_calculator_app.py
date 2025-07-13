@@ -545,6 +545,7 @@ def calcular_pm_solido_aparente(Tf_input_celsius, agua_porcentaje_inicial):
 # --- Interfaz de Usuario Streamlit ---
 
 st.title("Calculadora de Procesos Térmicos en Alimentos 🍎")
+st.markdown("Desarrollada por **Dra Silvia M. Miro Erdmann**") 
 
 st.markdown("""
 Esta aplicación permite calcular propiedades termofísicas de alimentos y simular procesos de calentamiento, enfriamiento y congelación utilizando modelos de la ingeniería de alimentos.
