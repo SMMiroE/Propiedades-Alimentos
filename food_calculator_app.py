@@ -544,7 +544,7 @@ def calcular_pm_solido_aparente(Tf_input_celsius, agua_porcentaje_inicial):
 
 # --- Interfaz de Usuario Streamlit ---
 
-st.title("Calculadora de Procesos Térmicos en Alimentos 🍎")
+st.title("Calculadora de Procesos Térmicos en Alimentos")
 st.markdown("Desarrollada por **Dra. Silvia M. Miro Erdmann**") 
 
 st.markdown("""
