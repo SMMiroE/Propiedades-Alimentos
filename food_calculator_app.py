@@ -449,7 +449,7 @@ st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Proce
 
 # Título Principal con tamaño ajustado
 st.markdown("<h1 style='font-size: 1.8em;'>🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
-st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
+st.markdown("Desarrollada por SMMIROE")
 
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
@@ -908,4 +908,14 @@ with tab4:
     """)
     st.markdown("""
     *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
+    """)
+with tab5:
+    st.markdown("<h5 style='font-size: 1.2em;'>Contacto</h5>", unsafe_allow_html=True)
+    st.markdown("""
+    **Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann** 🔬
+    * **Correo Electronico:** smmiroer@gmail.com
+
+    * **Cargo:** Profesor Adjunto
+    * **Institución 1:** Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
+    * **Institución 2:** Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
     """)
