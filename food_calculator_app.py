@@ -517,7 +517,7 @@ st.markdown("---")
 # Subtítulo 2 con tamaño ajustado
 st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf)</h2>", unsafe_allow_html=True)
 Tf_input = st.number_input("Temperatura de Congelación Inicial (Tf) [ºC]", value=-1.0, step=0.1, key="tf_input")
-st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, estimada a partir de su composición.)*")
+st.info(f"*Esta es la temperatura a la cual el alimento comienza a congelarse, puedes encontrarla en la bibliografia.*")
 
 
 # --- Selección del Tipo de Cálculo ---
@@ -561,15 +561,15 @@ dimension_a_plank = 0.0
 
 
 if calculation_type == "Propiedades a T > 0°C":
-    T_prop = st.number_input("Temperatura de referencia para propiedades [ºC]", value=20.0, step=1.0, key="t_prop_gt0")
+    T_prop = st.number_input("Temperatura para el calculo de propiedades [ºC]", value=20.0, step=1.0, key="t_prop_gt0")
     if T_prop < Tf_input:
         st.warning(f"La temperatura de referencia ({T_prop}ºC) está en la zona de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán para la fase congelada. Considera cambiar a 'Propiedades a T < 0ºC' si ese es tu objetivo principal.")
     # No se calcula aquí, sino en el botón "Realizar Cálculo"
 
 elif calculation_type == "Propiedades a T < 0°C":
-    T_prop = st.number_input("Temperatura de referencia para propiedades [ºC]", value=-10.0, step=1.0, key="t_prop_lt0")
+    T_prop = st.number_input("Temperatura para el calculo de propiedades [ºC]", value=-10.0, step=1.0, key="t_prop_lt0")
     if T_prop >= Tf_input:
-        st.warning(f"La temperatura de referencia ({T_prop}ºC) es mayor o igual que la temperatura de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán como si no hubiera hielo. Considera cambiar a 'Propiedades a T > 0ºC' si ese es tu objetivo principal.")
+        st.warning(f"La temperatura ({T_prop}ºC) es mayor o igual que la temperatura de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán como si no hubiera hielo. Considera cambiar a 'Propiedades a T > 0ºC' si ese es tu objetivo principal.")
     # No se calcula aquí, sino en el botón "Realizar Cálculo"
 
 elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo de proceso para alcanzar una temperatura final (ºC)", "Temperatura en una posición específica (X) en el alimento (ºC)"]:
