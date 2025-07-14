@@ -450,12 +450,12 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
 # --- Configuración de la página Streamlit ---
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
 
-st.title("🍎 ThermoFoodCalc: Propiedades y Procesos Térmicos de Alimentos ❄️🔥")
-st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
+st.title("🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥")
+st.markdown("Desarrollada por Silvia Miro")
 
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
-st.header("1. Composición Proximal del Alimento (%)")
+st.header("1. Composición Proximal del Alimento (%): ingresa los datos obtenidos de tablas")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -484,17 +484,17 @@ else:
 
 # --- Temperatura de Congelación Inicial ---
 st.markdown("---")
-st.header("2. Temperatura de Congelación Inicial (Tf)")
+st.header("2. Temperatura de Congelación Inicial (Tf): ingresa el dato obtenido de tablas")
 Tf_input = st.number_input("Temperatura de Congelación Inicial (Tf) [ºC]", value=-1.0, step=0.1, key="tf_input")
 st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, estimada a partir de su composición.)*")
 
 
 # --- Selección del Tipo de Cálculo ---
 st.markdown("---")
-st.header("3. Elige el Cálculo a Realizar")
+st.header("3. Selecciona el Cálculo a Realizar")
 
 calculation_type = st.radio(
-    "Selecciona el tipo de cálculo que deseas realizar:",
+    
     ("Propiedades a T > 0°C",
      "Propiedades a T < 0°C",
      "Temperatura final en el punto frío (ºC)",
@@ -507,7 +507,7 @@ calculation_type = st.radio(
 
 # --- Inputs dinámicos según la selección ---
 st.markdown("---")
-st.header("4. Parámetros del Cálculo")
+st.header("4. Parámetros del Cálculo: ingresa los siguientes valores")
 
 if calculation_type == "Propiedades a T > 0°C":
     T_prop = st.number_input("Temperatura de referencia para propiedades [ºC]", value=20.0, step=1.0, key="t_prop_gt0")
