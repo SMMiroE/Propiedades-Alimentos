@@ -98,7 +98,7 @@ def calcular_propiedades_alimento(composicion, T, Tf):
         rho_solids = (composicion_solidos['proteina']/100 * 1300 +
                       composicion_solidos['grasa']/100 * 920 +
                       composicion_solidos['carbohidratos']/100 * 1600 +
-                      composicion_solidos['fibra']/10icion_solidos['fibra']/100 * 1500 +
+                      composicion_solidos['fibra']/100 * 1500 +
                       composicion_solidos['cenizas']/100 * 2000)
         cp_solids = (composicion_solidos['proteina']/100 * 1550 +
                      composicion_solidos['grasa']/100 * 1900 +
