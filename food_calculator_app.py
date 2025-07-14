@@ -785,8 +785,7 @@ with tab1:
 
 4.  **Ingresa los Parámetros Específicos:** * En la sección "4. Parámetros del Cálculo", aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes de convección, geometría, dimensiones, etc.). Completa todos los datos necesarios.
 
-5.  **Realiza el Cálculo:** * Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros.
-    * Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
+5.  **Realiza el Cálculo:** * Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros. Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
     """, unsafe_allow_html=True)
 
 with tab2:
