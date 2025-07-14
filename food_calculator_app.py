@@ -448,13 +448,13 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
 
 # Título Principal con tamaño ajustado
-st.markdown("<h1 style='font-size: 1.8em;'>🍎 ThermoFoodCalc: Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size: 1.8em;'>🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
 st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
 
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
 # Subtítulo 1 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>1. Composición Proximal del Alimento (%)</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>1. Composición Proximal del Alimento (%): Ingresa los datos obtenidos de tablas</h2>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
@@ -484,7 +484,7 @@ else:
 # --- Temperatura de Congelación Inicial ---
 st.markdown("---")
 # Subtítulo 2 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf)</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf): Ingresa el dato obtenido de tablas</h2>", unsafe_allow_html=True)
 Tf_input = st.number_input("Temperatura de Congelación Inicial (Tf) [ºC]", value=-1.0, step=0.1, key="tf_input")
 st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, estimada a partir de su composición.)*")
 
@@ -492,10 +492,10 @@ st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, 
 # --- Selección del Tipo de Cálculo ---
 st.markdown("---")
 # Subtítulo 3 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>3. Elige el Cálculo a Realizar</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>3. Selecciona el Cálculo a Realizar</h2>", unsafe_allow_html=True)
 
 calculation_type = st.radio(
-    "Selecciona el tipo de cálculo que deseas realizar:",
+    "",
     ("Propiedades a T > 0°C",
      "Propiedades a T < 0°C",
      "Temperatura final en el punto frío (ºC)",
