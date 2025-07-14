@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
 from scipy.special import jv as J0 # Para funciones de Bessel
+import plotly.graph_objects as go # Importar Plotly
+import plotly.express as px # Importar Plotly (puede que no se use px directamente, pero es buena práctica)
 
 # --- Funciones de Cálculo ---
 def calcular_propiedades_alimento(composicion, T, Tf):
@@ -70,9 +72,6 @@ def calcular_propiedades_alimento(composicion, T, Tf):
         # Fracción de masa de agua no congelada
         mu_agua_inicial = composicion['agua'] / 100.0
         # Basado en la suposición de que XA es la relación entre el agua no congelada y el agua inicial
-        # Este es un punto de simplificación; la relación exacta puede ser más compleja
-        # aW = n_agua_liq / (n_agua_liq + n_solutos)
-        # Aquí, estamos asumiendo que XA ~ m_unfrozen_water / m_initial_water
         # Esto es una simplificación muy común en modelos de propiedades.
         fraccion_agua_no_congelada = mu_agua_inicial * XA
         fraccion_hielo = mu_agua_inicial - fraccion_agua_no_congelada
@@ -95,7 +94,7 @@ def calcular_propiedades_alimento(composicion, T, Tf):
         rho_solids = (composicion_solidos['proteina']/100 * 1300 +
                       composicion_solidos['grasa']/100 * 920 +
                       composicion_solidos['carbohidratos']/100 * 1600 +
-                      composicion_solidos['fibra']/100 * 1500 + # <-- CORREGIDO AQUÍ
+                      composicion_solidos['fibra']/100 * 1500 +
                       composicion_solidos['cenizas']/100 * 2000)
         cp_solids = (composicion_solidos['proteina']/100 * 1550 +
                      composicion_solidos['grasa']/100 * 1900 +
@@ -139,43 +138,6 @@ def calcular_lambda1_A1(Bi, geometria):
     Para este ejemplo, se usan valores aproximados o predefinidos para rangos.
     En una aplicación real, se usarían funciones de interpolación o resolución numérica.
     """
-    if geometria == "Placa Plana":
-        # Aproximaciones para Bi alto, medio y bajo.
-        if Bi < 0.1: # Conducción interna dominante
-            lambda1 = np.sqrt(Bi) # Muy aproximado
-            A1 = 1
-        elif Bi < 10:
-            lambda1 = np.sqrt(Bi / (1 + Bi/3)) # Aproximación
-            A1 = 1.01 * np.exp(-0.2 * Bi) # Aproximación
-        else: # Convección dominante (Bi grande)
-            lambda1 = np.pi / 2 # Tiende a pi/2
-            A1 = 4 / np.pi
-    elif geometria == "Cilindro":
-        if Bi < 0.1:
-            lambda1 = np.sqrt(2 * Bi) # Muy aproximado
-            A1 = 1
-        elif Bi < 10:
-            lambda1 = np.sqrt(2 * Bi / (1 + Bi/2)) # Aproximación
-            A1 = 1.02 * np.exp(-0.15 * Bi) # Aproximación
-        else:
-            lambda1 = 2.4048 # Primera raíz de J0
-            A1 = 1.6 # Placeholder (requiere J1)
-    elif geometria == "Esfera":
-        if Bi < 0.1:
-            lambda1 = np.sqrt(3 * Bi) # Muy aproximado
-            A1 = 1
-        elif Bi < 10:
-            lambda1 = np.sqrt(3 * Bi / (1 + Bi/3)) # Aproximación
-            A1 = 1.03 * np.exp(-0.1 * Bi) # Aproximación
-        else:
-            lambda1 = np.pi # Primera raíz de tan(lambda) = lambda
-            A1 = 2 # Placeholder
-    else:
-        lambda1 = 0
-        A1 = 0
-
-    # Para mayor precisión, se usarían tablas o funciones de raíz numérica.
-    # A modo de ejemplo simple:
     if Bi < 0.001:
         lambda1 = 0.001
         A1 = 1.0
@@ -270,7 +232,6 @@ def calcular_tiempo_para_temperatura(T_final_alimento, T_inicial_alimento, T_med
         return None, None, None, None, None
 
     try:
-        # ln(theta/theta_i / A1) = -lambda1^2 * Fo
         # Fo = -1/lambda1^2 * ln(theta/theta_i / A1)
         Fo = - (1 / (lambda1**2)) * np.log(theta_theta_i_target / A1)
         if Fo < 0: # Esto no debería ocurrir si theta_theta_i_target es válido y A1 > 0
@@ -326,7 +287,7 @@ def calcular_temperatura_posicion(t_segundos, T_inicial_alimento, T_medio, alpha
     if Lc == 0:
         st.error("La longitud característica (Lc) es cero, no se puede calcular el factor de posición.")
         return None
-    
+
     x_over_Lc = posicion_x / Lc
 
     if geometria == 'Placa Plana':
@@ -383,7 +344,7 @@ def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h_congel
         term3 = (R_plank * dimension_a_plank**2) / k_alimento_congelado
 
         t_segundos_plank = term1 * (term2 + term3)
-        t_minutos_plank = t_segundos_plundos / 60
+        t_minutos_plank = t_segundos_plank / 60 # Corregido de t_segundos_plundos
     except ZeroDivisionError:
         st.error("División por cero en el cálculo de Plank. Revisa los valores de h, k_f o la diferencia de temperatura.")
         return None
@@ -425,11 +386,6 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
             return None
 
         # PM_s = (XA * m_s * PM_agua) / (m_u * (1 - XA))
-        # Despejando PMs de XA = (m_u/PM_agua) / (m_u/PM_agua + m_s/PM_s)
-        # 1/XA = 1 + (m_s*PM_agua) / (m_u*PM_s)
-        # (1/XA - 1) = (m_s*PM_agua) / (m_u*PM_s)
-        # (1 - XA) / XA = (m_s*PM_agua) / (m_u*PM_s)
-        # PM_s = (XA * m_s * PM_agua) / (m_u * (1 - XA))
         pm_s = (XA * m_s * PM_agua) / (m_u * (1 - XA))
 
         if pm_s < 0: # Puede ocurrir con números muy pequeños o errores de flotación
@@ -443,18 +399,86 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
         st.error(f"Error en el cálculo del Peso Molecular Aparente del Sólido: {e}")
         return None
 
+def generar_graficos_propiedades(composicion, Tf_input):
+    """
+    Genera gráficos de Densidad, Cp, k y Alpha vs. Temperatura.
+    """
+    temperaturas = np.linspace(-30, 100, 100) # Rango de temperatura de -30 a 100 C con 100 puntos
+    densidades = []
+    cps = []
+    ks = []
+    alphas = []
+
+    for T in temperaturas:
+        rho, cp, k, alpha = calcular_propiedades_alimento(composicion, T, Tf_input)
+        densidades.append(rho)
+        cps.append(cp)
+        ks.append(k)
+        alphas.append(alpha)
+
+    # Convertir a arrays para facilitar el manejo
+    densidades = np.array(densidades)
+    cps = np.array(cps)
+    ks = np.array(ks)
+    alphas = np.array(alphas)
+
+    # --- Gráfico de Densidad ---
+    fig_rho = go.Figure()
+    fig_rho.add_trace(go.Scatter(x=temperaturas, y=densidades, mode='lines', name='Densidad'))
+    fig_rho.update_layout(
+        title='Densidad vs. Temperatura',
+        xaxis_title='Temperatura [°C]',
+        yaxis_title='Densidad [kg/m³]',
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_rho, use_container_width=True)
+
+    # --- Gráfico de Calor Específico ---
+    fig_cp = go.Figure()
+    fig_cp.add_trace(go.Scatter(x=temperaturas, y=cps, mode='lines', name='Calor Específico'))
+    fig_cp.update_layout(
+        title='Calor Específico vs. Temperatura',
+        xaxis_title='Temperatura [°C]',
+        yaxis_title='Calor Específico [J/(kg·K)]',
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_cp, use_container_width=True)
+
+    # --- Gráfico de Conductividad Térmica ---
+    fig_k = go.Figure()
+    fig_k.add_trace(go.Scatter(x=temperaturas, y=ks, mode='lines', name='Conductividad Térmica'))
+    fig_k.update_layout(
+        title='Conductividad Térmica vs. Temperatura',
+        xaxis_title='Temperatura [°C]',
+        yaxis_title='Conductividad Térmica [W/(m·K)]',
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_k, use_container_width=True)
+
+    # --- Gráfico de Difusividad Térmica ---
+    fig_alpha = go.Figure()
+    fig_alpha.add_trace(go.Scatter(x=temperaturas, y=alphas, mode='lines', name='Difusividad Térmica'))
+    fig_alpha.update_layout(
+        title='Difusividad Térmica vs. Temperatura',
+        xaxis_title='Temperatura [°C]',
+        yaxis_title='Difusividad Térmica [m²/s]',
+        hovermode="x unified"
+    )
+    st.plotly_chart(fig_alpha, use_container_width=True)
+
+    st.info(f"**Nota sobre los gráficos:** La variación abrupta en la temperatura de congelación (aprox. {Tf_input:.1f}°C) se debe al modelo simplificado de cambio de fase utilizado. Los modelos reales de alimentos tienen transiciones más suaves debido a la distribución de solutos y agua ligada.")
 
 # --- Configuración de la página Streamlit ---
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
 
 # Título Principal con tamaño ajustado
-st.markdown("<h1 style='font-size: 1.8em;'>🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
-st.markdown("Desarrollada por SMMIROE")
+st.markdown("<h1 style='font-size: 1.8em;'>🍎 ThermoFoodCalc: Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
+st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
 
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
 # Subtítulo 1 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>1. Composición Proximal del Alimento (%): Ingresa los datos obtenidos de tablas</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>1. Composición Proximal del Alimento (%)</h2>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2)
 with col1:
@@ -484,7 +508,7 @@ else:
 # --- Temperatura de Congelación Inicial ---
 st.markdown("---")
 # Subtítulo 2 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf): Ingresa el dato obtenido de tablas</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf)</h2>", unsafe_allow_html=True)
 Tf_input = st.number_input("Temperatura de Congelación Inicial (Tf) [ºC]", value=-1.0, step=0.1, key="tf_input")
 st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, estimada a partir de su composición.)*")
 
@@ -492,11 +516,12 @@ st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, 
 # --- Selección del Tipo de Cálculo ---
 st.markdown("---")
 # Subtítulo 3 con tamaño ajustado
-st.markdown("<h2 style='font-size: 1.4em;'>3. Selecciona el Cálculo a Realizar</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='font-size: 1.4em;'>3. Elige el Cálculo a Realizar</h2>", unsafe_allow_html=True)
 
 calculation_type = st.radio(
-    "",
-    ("Propiedades a T > 0°C",
+    "", # Aquí se eliminó el texto del título del radio button
+    (
+     "Propiedades a T > 0°C", # Se mantuvo si el usuario quería solo eliminar el título
      "Propiedades a T < 0°C",
      "Temperatura final en el punto frío (ºC)",
      "Tiempo de proceso para alcanzar una temperatura final (ºC)",
@@ -540,15 +565,11 @@ elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo d
         st.info("Para esfera, la 'Dimensión Característica a' es el radio.")
     dimension_a = st.number_input("Dimensión Característica 'a' [m]", value=0.02, format="%.4f", help="Radio (cilindro, esfera) o semi-espesor (placa).", key="dimension_a_heisler")
 
-    # Calculamos propiedades medias para Heisler. Estas propiedades son del alimento en su conjunto,
-    # y deben evaluarse a una temperatura representativa del proceso.
-    # Si la temperatura media del proceso está en la zona de congelación, el modelo de Choi y Okos
-    # seguirá usando la fracción de hielo calculada.
+    # Calculamos propiedades medias para Heisler.
     T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
     if T_heisler_props_avg < Tf_input:
-        # CORREGIDO: Uso de f-string cruda (rf"") y doble llave para LaTeX
         st.warning(rf"La **temperatura promedio** para la evaluación de las propiedades ($\mathbf{{T_{{heisler\_props\_avg}}}}$ºC) cae en la zona de congelación, siendo menor que la temperatura inicial de congelación ($\mathbf{{T_{{f\_input}}}}$ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente, afectando la precisión de Heisler en esa fase.")
-    
+
     alpha_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[3] # Solo alfa
     k_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[2] # Solo k
 
@@ -675,10 +696,21 @@ if st.button("Realizar Cálculo", help="Haz clic para ejecutar el cálculo selec
                 st.info(f"*(Este valor es una estimación basada en la temperatura inicial de congelación del alimento ({Tf_input:.1f}°C) y la fracción de agua inicial ({composicion['agua']}%) a través de la ecuación de depresión crioscópica. Asume un comportamiento ideal de la solución y que los sólidos son el único soluto no congelable.)*")
 
 
+# --- Sección de Gráficos ---
+st.markdown("---")
+st.markdown("<h2 style='font-size: 1.4em;'>6. Gráficos de Propiedades vs. Temperatura</h2>", unsafe_allow_html=True)
+
+if total_composicion != 100.0:
+    st.warning("Ajusta la composición al 100% para generar los gráficos de propiedades.")
+else:
+    generar_graficos_propiedades(composicion, Tf_input)
+
+
 # --- Sección de Información Adicional ---
 st.markdown("---")
 st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
 
+# CORREGIDO: Añadir tab5 a la desestructuración de st.tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos", "Ecuaciones Utilizadas", "Contacto"])
 
 with tab1:
@@ -909,13 +941,14 @@ with tab4:
     st.markdown("""
     *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
     """)
+
+# Nueva pestaña de Contacto
 with tab5:
     st.markdown("<h5 style='font-size: 1.2em;'>Contacto</h5>", unsafe_allow_html=True)
     st.markdown("""
     **Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann** 🔬
-    * **Correo Electronico:** smmiroer@gmail.com
 
     * **Cargo:** Profesor Adjunto
     * **Institución 1:** Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
-    * **Institución 2:** Escuela de Ingeniería y Ciencias Ambientales - Universidad Nacional de Villa Mercedes (EICA-UNVM)
+    * **Institución 2:** Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
     """)
