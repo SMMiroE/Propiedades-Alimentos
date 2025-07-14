@@ -776,16 +776,15 @@ with tab1:
     st.markdown("""
     Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
-   1.  **Define la Composición Proximal:** * En la sección "1. Composición Proximal del Alimento (%)", ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
-    * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+   1.  **Define la Composición Proximal:** En la sección "1. Composición Proximal del Alimento (%)", ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento. Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
-2.  **Define la Temperatura de Congelación (Tf):** * En la sección "2. Temperatura de Congelación Inicial (Tf)", introduce la temperatura a la cual el alimento comienza a congelarse.
+2.  **Define la Temperatura de Congelación (Tf):** En la sección "2. Temperatura de Congelación Inicial (Tf)", introduce la temperatura a la cual el alimento comienza a congelarse.
 
-3.  **Selecciona el Tipo de Cálculo:** * En la sección "3. Elige el Cálculo a Realizar", usa las opciones para seleccionar la simulación que deseas ejecutar (por ejemplo, propiedades termofísicas, temperatura final, tiempo de proceso o tiempo de congelación).
+3.  **Selecciona el Tipo de Cálculo:** En la sección "3. Elige el Cálculo a Realizar", usa las opciones para seleccionar la simulación que deseas ejecutar (por ejemplo, propiedades termofísicas, temperatura final, tiempo de proceso o tiempo de congelación).
 
-4.  **Ingresa los Parámetros Específicos:** * En la sección "4. Parámetros del Cálculo", aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes de convección, geometría, dimensiones, etc.). Completa todos los datos necesarios.
+4.  **Ingresa los Parámetros Específicos:** En la sección "4. Parámetros del Cálculo", aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes de convección, geometría, dimensiones, etc.). Completa todos los datos necesarios.
 
-5.  **Realiza el Cálculo:** * Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros. Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
+5.  **Realiza el Cálculo:** Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros. Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
     """, unsafe_allow_html=True)
 
 with tab2:
