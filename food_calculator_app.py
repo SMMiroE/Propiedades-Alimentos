@@ -917,5 +917,5 @@ with tab5:
 
     * **Cargo:** Profesor Adjunto
     * **Institución 1:** Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
-    * **Institución 2:** Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
+    * **Institución 2:** Escuela de Ingeniería y Ciencias Ambientales - Universidad Nacional de Villa Mercedes (EICA-UNVM)
     """)
