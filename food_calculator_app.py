@@ -479,9 +479,9 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
 
 # Título Principal con tamaño ajustado
-st.markdown("<h1 style='font-size: 1.8em;'>🍎 ThermoFoodCalc: Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size: 1.8em;'>🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
 st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
-
+st.markdown("SMMiroE")
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
 # Subtítulo 1 con tamaño ajustado
@@ -997,9 +997,9 @@ with tab4:
 with tab5:
     st.markdown("<h5 style='font-size: 1.2em;'>Contacto</h5>", unsafe_allow_html=True)
     st.markdown("""
-    **Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann** 🔬
-
-    * **Cargo:** Profesor Adjunto
-    * **Institución 1:** Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
-    * **Institución 2:** Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
+    *Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann* 🔬
+    * smmiroer@gmail.com
+    * Profesor Adjunto
+    * Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
+    * Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
     """)
