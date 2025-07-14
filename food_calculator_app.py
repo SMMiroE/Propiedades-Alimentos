@@ -494,7 +494,6 @@ st.markdown("---")
 st.header("3. Selecciona el Cálculo a Realizar")
 
 calculation_type = st.radio(
-    
     ("Propiedades a T > 0°C",
      "Propiedades a T < 0°C",
      "Temperatura final en el punto frío (ºC)",
