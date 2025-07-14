@@ -906,4 +906,4 @@ with tab4:
     *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
     """)
 
-Si, al ejecutar el código anterior, los elementos **todavía aparecen en una barra lateral**, por favor, asegúrate de que no haya código Streamlit adicional en tu archivo principal que los esté colocando allí, o que no estés utilizando alguna plantilla personalizada. Reiniciar el navegador o el proceso de Streamlit a menudo resuelve problemas de visualización inesperados.
+#Si, al ejecutar el código anterior, los elementos **todavía aparecen en una barra lateral**, por favor, asegúrate de que no haya código Streamlit adicional en tu archivo principal que los esté colocando allí, o que no estés utilizando alguna plantilla personalizada. Reiniciar el navegador o el proceso de Streamlit a menudo resuelve problemas de visualización inesperados.
