@@ -546,7 +546,7 @@ elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo d
     # seguirá usando la fracción de hielo calculada.
     T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
     if T_heisler_props_avg < Tf_input:
-        st.warning(f"La **temperatura promedio** para la evaluación de las propiedades ($\mathbf{T_{heisler\_props\_avg}}$ºC) cae en la zona de congelación, siendo menor que la temperatura inicial de congelación ($\mathbf{T_{f\_input}}$ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente, afectando la precisión de Heisler en esa fase.")
+        st.warning(rf"La **temperatura promedio** para la evaluación de las propiedades ($\mathbf{{T_{{heisler\_props\_avg}}}}$ºC) cae en la zona de congelación, siendo menor que la temperatura inicial de congelación ($\mathbf{{T_{{f\_input}}}}$ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente, afectando la precisión de Heisler en esa fase.")
     
     alpha_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[3] # Solo alfa
     k_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[2] # Solo k
