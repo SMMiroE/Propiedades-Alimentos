@@ -1,8 +1,8 @@
 import streamlit as st
 import numpy as np
 from scipy.special import jv as J0 # Para funciones de Bessel
-import plotly.graph_objects as go
-import plotly.express as px # Importar Plotly Express
+# Eliminado: import plotly.graph_objects as go
+# Eliminado: import plotly.express as px
 
 # --- Funciones de Cálculo ---
 def calcular_propiedades_alimento(composicion, T, Tf):
@@ -473,63 +473,7 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
         st.error(f"Error en el cálculo del Peso Molecular Aparente del Sólido: {e}")
         return None
 
-def generar_graficos_propiedades(composicion, Tf_input):
-    """
-    Genera gráficos de Densidad, Cp, k y Alpha vs. Temperatura usando Plotly Express.
-    """
-    temperaturas = np.linspace(-30, 100, 500) # Aumentamos a 500 puntos para suavizar
-    densidades = []
-    cps = []
-    ks = []
-    alphas = []
-
-    for T in temperaturas:
-        rho, cp, k, alpha = calcular_propiedades_alimento(composicion, T, Tf_input)
-        densidades.append(rho)
-        cps.append(cp)
-        ks.append(k)
-        alphas.append(alpha)
-
-    # Crear un DataFrame para Plotly Express (opcional, pero útil para múltiples trazas)
-    import pandas as pd
-    df_props = pd.DataFrame({
-        'Temperatura [°C]': temperaturas,
-        'Densidad [kg/m³]': densidades,
-        'Calor Específico [J/(kg·K)]': cps,
-        'Conductividad Térmica [W/(m·K)]': ks,
-        'Difusividad Térmica [m²/s]': alphas
-    })
-
-    # --- Gráfico de Densidad ---
-    fig_rho = px.line(df_props, x='Temperatura [°C]', y='Densidad [kg/m³]',
-                      title='Densidad vs. Temperatura',
-                      labels={'Temperatura [°C]': 'Temperatura [°C]', 'Densidad [kg/m³]': 'Densidad [kg/m³]'})
-    fig_rho.update_traces(mode='lines', line_shape='linear') # Asegura líneas conectadas
-    st.plotly_chart(fig_rho, use_container_width=True)
-
-    # --- Gráfico de Calor Específico ---
-    fig_cp = px.line(df_props, x='Temperatura [°C]', y='Calor Específico [J/(kg·K)]',
-                     title='Calor Específico vs. Temperatura',
-                     labels={'Temperatura [°C]': 'Temperatura [°C]', 'Calor Específico [J/(kg·K)]': 'Calor Específico [J/(kg·K)]'})
-    fig_cp.update_traces(mode='lines', line_shape='linear')
-    st.plotly_chart(fig_cp, use_container_width=True)
-
-    # --- Gráfico de Conductividad Térmica ---
-    fig_k = px.line(df_props, x='Temperatura [°C]', y='Conductividad Térmica [W/(m·K)]',
-                    title='Conductividad Térmica vs. Temperatura',
-                    labels={'Temperatura [°C]': 'Temperatura [°C]', 'Conductividad Térmica [W/(m·K)]': 'Conductividad Térmica [W/(m·K)]'})
-    fig_k.update_traces(mode='lines', line_shape='linear')
-    st.plotly_chart(fig_k, use_container_width=True)
-
-    # --- Gráfico de Difusividad Térmica ---
-    fig_alpha = px.line(df_props, x='Temperatura [°C]', y='Difusividad Térmica [m²/s]',
-                        title='Difusividad Térmica vs. Temperatura',
-                        labels={'Temperatura [°C]': 'Temperatura [°C]', 'Difusividad Térmica [m²/s]': 'Difusividad Térmica [m²/s]'})
-    fig_alpha.update_traces(mode='lines', line_shape='linear')
-    st.plotly_chart(fig_alpha, use_container_width=True)
-
-    st.info(f"**Nota sobre los gráficos:** La variación abrupta cerca de la temperatura de congelación (aprox. {Tf_input:.1f}°C) se debe a la naturaleza simplificada del modelo de cambio de fase utilizado. Los alimentos reales exhiben transiciones más graduales.")
-
+# Eliminada la función generar_graficos_propiedades
 
 # --- Configuración de la página Streamlit ---
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
@@ -819,21 +763,12 @@ if st.button("Realizar Cálculo", help="Haz clic para ejecutar el cálculo selec
                 st.info(f"*(Este valor es una estimación basada en la temperatura inicial de congelación del alimento ({Tf_input:.1f}°C) y la fracción de agua inicial ({composicion['agua']}%) a través de la ecuación de depresión crioscópica. Asume un comportamiento ideal de la solución y que los sólidos son el único soluto no congelable.)*")
 
 
-# --- Sección de Gráficos ---
-st.markdown("---")
-st.markdown("<h2 style='font-size: 1.4em;'>6. Gráficos de Propiedades vs. Temperatura</h2>", unsafe_allow_html=True)
-
-if abs(total_composicion - 100.0) > 0.01:
-    st.warning("Ajusta la composición al 100% para generar los gráficos de propiedades.")
-else:
-    generar_graficos_propiedades(composicion, Tf_input)
-
+# Eliminada la sección de Gráficos
 
 # --- Sección de Información Adicional ---
 st.markdown("---")
 st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
 
-# CORREGIDO: Añadir tab5 a la desestructuración de st.tabs
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Guía Rápida de Uso", "Referencias Bibliográficas", "Bases de Datos de Composición de Alimentos", "Ecuaciones Utilizadas", "Contacto"])
 
 with tab1:
