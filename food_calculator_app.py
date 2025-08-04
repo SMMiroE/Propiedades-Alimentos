@@ -101,7 +101,7 @@ def calcular_propiedades_alimento(composicion, T, Tf):
 
         # Densidad de la mezcla (modelo de mezcla ideal para volumen)
         sum_inv_rho_frac = (fraccion_hielo / rho_ice +
-                            fraccion_agua_no_gelada / rho_w +
+                            fraccion_agua_no_congelada / rho_w +
                             (composicion['proteina']/100 / rho_prot) +
                             (composicion['grasa']/100 / rho_fat) +
                             (composicion['carbohidratos']/100 / rho_carb) +
