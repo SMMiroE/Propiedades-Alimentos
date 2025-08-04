@@ -998,8 +998,8 @@ with tab5:
     st.markdown("<h5 style='font-size: 1.2em;'>Contacto</h5>", unsafe_allow_html=True)
     st.markdown("""
     *Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann* 🔬
-    * smmiroer@gmail.com
-    * Profesor Adjunto
-    * Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
-    * Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
+    *smmiroer@gmail.com
+    *Profesor Adjunto
+    *Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
+    *Escuela de Ingeniería y Ciencias Aplicadas - Universidad Nacional de Villa Mercedes (EICA-UNViMe)
     """)
