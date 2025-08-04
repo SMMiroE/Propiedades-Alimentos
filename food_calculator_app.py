@@ -1,8 +1,6 @@
 import streamlit as st
 import numpy as np
-from scipy.special import jv as J0 # Para funciones de Bessel
-# Eliminado: import plotly.graph_objects as go
-# Eliminado: import plotly.express as px
+from scipy.special import jv as J0
 
 # --- Funciones de Cálculo ---
 def calcular_propiedades_alimento(composicion, T, Tf):
@@ -42,6 +40,9 @@ def calcular_propiedades_alimento(composicion, T, Tf):
     rho_ash = 2000
     cp_ash = 820
     k_ash = 0.35
+
+    # Inicialización de la fracción de hielo
+    fraccion_hielo = 0.0
 
     if T >= Tf: # Fase no congelada (líquida)
         # Suma ponderada de las propiedades de los componentes
@@ -100,7 +101,7 @@ def calcular_propiedades_alimento(composicion, T, Tf):
 
         # Densidad de la mezcla (modelo de mezcla ideal para volumen)
         sum_inv_rho_frac = (fraccion_hielo / rho_ice +
-                            fraccion_agua_no_congelada / rho_w +
+                            fraccion_agua_no_gelada / rho_w +
                             (composicion['proteina']/100 / rho_prot) +
                             (composicion['grasa']/100 / rho_fat) +
                             (composicion['carbohidratos']/100 / rho_carb) +
@@ -127,7 +128,7 @@ def calcular_propiedades_alimento(composicion, T, Tf):
              composicion['cenizas']/100 * k_ash)
 
     alpha_val = k / (densidad * cp) if (densidad * cp) > 0 else 0
-    return densidad, cp, k, alpha_val
+    return densidad, cp, k, alpha_val, fraccion_hielo
 
 def calcular_lambda1_A1(Bi, geometria):
     """
@@ -390,7 +391,7 @@ def calcular_tiempo_congelacion_plank(Tf_input, T_ambiente_congelacion, h_congel
     delta_T = Tf_input - T_ambiente_congelacion
     if delta_T <= 0:
         st.error("La temperatura de congelación debe ser mayor que la temperatura ambiente para calcular el tiempo de congelación.")
-        return None
+        return None, None, None, None
 
     try:
         # t = (Le / delta_T) * (P*a/h + R*a^2/kf)
@@ -473,15 +474,13 @@ def calcular_pm_solido_aparente(Tf_input, porcentaje_agua):
         st.error(f"Error en el cálculo del Peso Molecular Aparente del Sólido: {e}")
         return None
 
-# Eliminada la función generar_graficos_propiedades
-
 # --- Configuración de la página Streamlit ---
 st.set_page_config(layout="wide", page_title="Calculadora de Propiedades y Procesos Térmicos de Alimentos")
 
 # Título Principal con tamaño ajustado
-st.markdown("<h1 style='font-size: 1.8em;'>🍎 Calculadora de Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='font-size: 1.8em;'>🍎 ThermoFoodCalc: Propiedades y Procesos Térmicos de Alimentos ❄️🔥</h1>", unsafe_allow_html=True)
 st.markdown("¡Bienvenido a la calculadora interactiva para simular el comportamiento térmico de los alimentos!")
-st.markdown("SMMiroE")
+
 # --- Entrada de Composición del Alimento ---
 st.markdown("---")
 # Subtítulo 1 con tamaño ajustado
@@ -517,7 +516,7 @@ st.markdown("---")
 # Subtítulo 2 con tamaño ajustado
 st.markdown("<h2 style='font-size: 1.4em;'>2. Temperatura de Congelación Inicial (Tf)</h2>", unsafe_allow_html=True)
 Tf_input = st.number_input("Temperatura de Congelación Inicial (Tf) [ºC]", value=-1.0, step=0.1, key="tf_input")
-st.info(f"*Esta es la temperatura a la cual el alimento comienza a congelarse, puedes encontrarla en la bibliografia.*")
+st.info(f"*(Esta es la temperatura a la cual el alimento comienza a congelarse, la cual debe ser introducida desde una fuente externa como tablas o mediciones.)*")
 
 
 # --- Selección del Tipo de Cálculo ---
@@ -530,6 +529,7 @@ calculation_type = st.radio(
     (
      "Propiedades a T > 0°C",
      "Propiedades a T < 0°C",
+     "Fracción de Hielo y Agua No Congelada [%]",
      "Temperatura final en el punto frío (ºC)",
      "Tiempo de proceso para alcanzar una temperatura final (ºC)",
      "Temperatura en una posición específica (X) en el alimento (ºC)",
@@ -559,18 +559,14 @@ L_e = 0.0
 geometria_plank = "Placa Plana"
 dimension_a_plank = 0.0
 
-
-if calculation_type == "Propiedades a T > 0°C":
-    T_prop = st.number_input("Temperatura para el calculo de propiedades [ºC]", value=20.0, step=1.0, key="t_prop_gt0")
-    if T_prop < Tf_input:
+if calculation_type in ["Propiedades a T > 0°C", "Propiedades a T < 0°C", "Fracción de Hielo y Agua No Congelada [%]"]:
+    T_prop = st.number_input("Temperatura de referencia [ºC]", value=-10.0 if "Propiedades a T < 0°C" in calculation_type or "Fracción de Hielo" in calculation_type else 20.0, step=1.0, key="t_prop_input")
+    if T_prop >= Tf_input and "Propiedades a T < 0°C" in calculation_type:
+        st.warning(f"La temperatura de referencia ({T_prop}ºC) es mayor o igual que la temperatura de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán como si no hubiera hielo. Considera cambiar a 'Propiedades a T > 0ºC'.")
+    if T_prop >= Tf_input and "Fracción de Hielo" in calculation_type:
+        st.info("La temperatura de referencia es mayor o igual que la de congelación, por lo que la fracción de hielo será 0.")
+    if T_prop < Tf_input and "Propiedades a T > 0°C" in calculation_type:
         st.warning(f"La temperatura de referencia ({T_prop}ºC) está en la zona de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán para la fase congelada. Considera cambiar a 'Propiedades a T < 0ºC' si ese es tu objetivo principal.")
-    # No se calcula aquí, sino en el botón "Realizar Cálculo"
-
-elif calculation_type == "Propiedades a T < 0°C":
-    T_prop = st.number_input("Temperatura para el calculo de propiedades [ºC]", value=-10.0, step=1.0, key="t_prop_lt0")
-    if T_prop >= Tf_input:
-        st.warning(f"La temperatura ({T_prop}ºC) es mayor o igual que la temperatura de congelación inicial ({Tf_input}ºC). Las propiedades se calcularán como si no hubiera hielo. Considera cambiar a 'Propiedades a T > 0ºC' si ese es tu objetivo principal.")
-    # No se calcula aquí, sino en el botón "Realizar Cálculo"
 
 elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo de proceso para alcanzar una temperatura final (ºC)", "Temperatura en una posición específica (X) en el alimento (ºC)"]:
     T_inicial_alimento = st.number_input("Temperatura Inicial del Alimento [ºC]", value=20.0, step=1.0, key="t_inicial_alimento")
@@ -592,23 +588,16 @@ elif calculation_type in ["Temperatura final en el punto frío (ºC)", "Tiempo d
     if dimension_a == 0: st.error("La dimensión característica 'a' no puede ser cero para estos cálculos.")
 
     # Calculamos propiedades medias para Heisler.
-    # Evitar un promedio que caiga en la zona no aplicable si T_inicial y T_medio son muy diferentes
     if T_medio >= Tf_input and T_inicial_alimento >= Tf_input:
-        # Ambas en zona no congelada
         T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
     elif T_medio < Tf_input and T_inicial_alimento < Tf_input:
-        # Ambas en zona congelada
         T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
     else:
-        # Cruza la zona de congelación. Se evalúa en un punto "seguro" o se advierte.
-        # Por simplicidad, se usa el promedio, pero se advierte.
         T_heisler_props_avg = (T_inicial_alimento + T_medio) / 2
-        st.warning(rf"La **temperatura promedio** para la evaluación de las propiedades ($\mathbf{{T_{{heisler\_props\_avg}}}}$ºC) cae en la zona de congelación, siendo menor que la temperatura inicial de congelación ($\mathbf{{T_{{f\_input}}}}$ºC). Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente, afectando la precisión de Heisler en esa fase.")
+        st.warning(rf"La **temperatura promedio** para la evaluación de las propiedades ($\mathbf{{T_{{heisler\_props\_avg}}}}$ºC) cae en la zona de congelación. Los modelos de Choi y Okos usados aquí asumen un comportamiento simple de congelación. Para procesos de congelación profundos, las propiedades pueden variar significativamente, afectando la precisión de Heisler en esa fase.")
 
-    # Se calculan para la advertencia visual, pero se recalculan dentro de la función del botón
     alpha_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[3]
     k_alimento_medio = calcular_propiedades_alimento(composicion, T_heisler_props_avg, Tf_input)[2]
-
 
     if calculation_type == "Temperatura final en el punto frío (ºC)":
         t_minutos = st.number_input("Tiempo de Proceso [min]", value=30.0, min_value=0.0, step=1.0, key="t_minutos_final_temp")
@@ -634,14 +623,10 @@ elif calculation_type == "Tiempo de congelación (min)":
     h_congelacion = st.number_input("Coeficiente de Convección (h) [W/(m²·K)]", value=20.0, min_value=0.0, step=1.0, help="Coeficiente de convección para el proceso de congelación.", key="h_congelacion")
     if h_congelacion == 0: st.error("El coeficiente de convección (h) no puede ser cero.")
 
-
-    # Para k_f de Plank, se suele evaluar a una temperatura media entre Tf y Ta
     T_kf_plank = (Tf_input + T_ambiente_congelacion) / 2
-    # Ajuste para asegurar que la temperatura de evaluación de k_f no esté por encima de Tf
     if T_kf_plank > Tf_input:
-          T_kf_plank = Tf_input - 2.0 # Asegurarse de que esté en la zona congelada
-
-    k_alimento_congelado = calcular_propiedades_alimento(composicion, T_kf_plank, Tf_input)[2] # Solo k
+          T_kf_plank = Tf_input - 2.0
+    k_alimento_congelado = calcular_propiedades_alimento(composicion, T_kf_plank, Tf_input)[2]
 
     L_e = (composicion['agua'] / 100) * 333.6e3 # J/kg (Calor latente de fusión del hielo a 0°C)
     st.info(f"Calor latente efectivo (Le) utilizado para Plank: {L_e/1000:.2f} kJ/kg (Basado solo en calor latente de fusión del agua inicial).")
@@ -670,13 +655,27 @@ if st.button("Realizar Cálculo", help="Haz clic para ejecutar el cálculo selec
     if abs(total_composicion - 100.0) > 0.01:
         st.error("Por favor, ajusta los porcentajes de composición para que sumen 100% antes de calcular.")
     else:
-        if calculation_type == "Propiedades a T > 0°C" or calculation_type == "Propiedades a T < 0°C":
-            densidad_val, cp_val, k_val, alpha_val = calcular_propiedades_alimento(composicion, T_prop, Tf_input)
-            st.success(f"Propiedades Termofísicas del Alimento a {T_prop:.1f} °C:")
-            st.write(f"**Densidad (ρ):** {densidad_val:.2f} kg/m³")
-            st.write(f"**Calor Específico (Cp):** {cp_val:.2f} J/(kg·K)")
-            st.write(f"**Conductividad Térmica (k):** {k_val:.4f} W/(m·K)")
-            st.write(f"**Difusividad Térmica (α):** {alpha_val:.2e} m²/s")
+        if calculation_type == "Propiedades a T > 0°C" or calculation_type == "Propiedades a T < 0°C" or calculation_type == "Fracción de Hielo y Agua No Congelada [%]":
+            densidad_val, cp_val, k_val, alpha_val, fraccion_hielo = calcular_propiedades_alimento(composicion, T_prop, Tf_input)
+            
+            if "Propiedades" in calculation_type:
+                st.success(f"Propiedades Termofísicas del Alimento a {T_prop:.1f} °C:")
+                st.write(f"**Densidad (ρ):** {densidad_val:.2f} kg/m³")
+                st.write(f"**Calor Específico (Cp):** {cp_val:.2f} J/(kg·K)")
+                st.write(f"**Conductividad Térmica (k):** {k_val:.4f} W/(m·K)")
+                st.write(f"**Difusividad Térmica (α):** {alpha_val:.2e} m²/s")
+            
+            if "Fracción de Hielo" in calculation_type:
+                fraccion_agua_inicial = composicion['agua'] / 100.0
+                fraccion_agua_no_congelada = fraccion_agua_inicial - fraccion_hielo
+                
+                st.success(f"Composición de Agua del Alimento a {T_prop:.1f} °C:")
+                st.write(f"**Agua Inicial:** {composicion['agua']:.2f}%")
+                st.write(f"**Fracción de Agua Congelada (Hielo):** {fraccion_hielo * 100:.2f}%")
+                st.write(f"**Fracción de Agua No Congelada:** {fraccion_agua_no_congelada * 100:.2f}%")
+                if T_prop >= Tf_input:
+                    st.info(f"A esta temperatura ({T_prop} °C), el alimento no está congelado. La fracción de hielo es 0.")
+
 
         elif calculation_type == "Temperatura final en el punto frío (ºC)":
             # Recalcular propiedades medias justo antes del cálculo
@@ -762,9 +761,6 @@ if st.button("Realizar Cálculo", help="Haz clic para ejecutar el cálculo selec
                     st.success(f"Peso Molecular Aparente del Sólido (PMs): **{pm_s_result:.2f} g/mol**")
                 st.info(f"*(Este valor es una estimación basada en la temperatura inicial de congelación del alimento ({Tf_input:.1f}°C) y la fracción de agua inicial ({composicion['agua']}%) a través de la ecuación de depresión crioscópica. Asume un comportamiento ideal de la solución y que los sólidos son el único soluto no congelable.)*")
 
-
-# Eliminada la sección de Gráficos
-
 # --- Sección de Información Adicional ---
 st.markdown("---")
 st.markdown("<h4 style='font-size: 1.4em;'>Información Adicional</h4>", unsafe_allow_html=True)
@@ -776,15 +772,22 @@ with tab1:
     st.markdown("""
     Para utilizar esta herramienta de simulación de procesos térmicos, sigue estos sencillos pasos:
 
-   1.  **Define la Composición Proximal:** En la sección "1. Composición Proximal del Alimento (%)", ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento. Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
+    1.  **Define la Composición Proximal:**
+        * En la sección "1. Composición Proximal del Alimento (%)", ingresa los porcentajes de **Agua, Proteína, Grasa, Carbohidratos, Fibra** y **Cenizas** de tu alimento.
+        * Asegúrate de que la suma total sea **100%**. La aplicación te indicará si necesitas ajustar los valores.
 
-2.  **Define la Temperatura de Congelación (Tf):** En la sección "2. Temperatura de Congelación Inicial (Tf)", introduce la temperatura a la cual el alimento comienza a congelarse.
+    2.  **Define la Temperatura de Congelación (Tf):**
+        * En la sección "2. Temperatura de Congelación Inicial (Tf)", introduce la temperatura a la cual el alimento comienza a congelarse.
 
-3.  **Selecciona el Tipo de Cálculo:** En la sección "3. Elige el Cálculo a Realizar", usa las opciones para seleccionar la simulación que deseas ejecutar (por ejemplo, propiedades termofísicas, temperatura final, tiempo de proceso o tiempo de congelación).
+    3.  **Selecciona el Tipo de Cálculo:**
+        * En la sección "3. Elige el Cálculo a Realizar", usa las opciones para seleccionar la simulación que deseas ejecutar (por ejemplo, propiedades termofísicas, temperatura final, tiempo de proceso o tiempo de congelación).
 
-4.  **Ingresa los Parámetros Específicos:** En la sección "4. Parámetros del Cálculo", aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes de convección, geometría, dimensiones, etc.). Completa todos los datos necesarios.
+    4.  **Ingresa los Parámetros Específicos:**
+        * En la sección "4. Parámetros del Cálculo", aparecerán los campos de entrada relevantes para tu simulación (temperaturas, coeficientes de convección, geometría, dimensiones, etc.). Completa todos los datos necesarios.
 
-5.  **Realiza el Cálculo:** Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros. Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
+    5.  **Realiza el Cálculo:**
+        * Haz clic en el botón **"Realizar Cálculo"** ubicado en la parte inferior de la sección de parámetros.
+        * Los **resultados** se mostrarán inmediatamente en la sección "5. Resultados del Cálculo", junto con cualquier parámetro adicional relevante.
     """, unsafe_allow_html=True)
 
 with tab2:
@@ -993,13 +996,12 @@ with tab4:
     *Nota: Para el cálculo en cilindros, se requiere la función de Bessel de primera clase de orden cero ($J_0$), que se obtiene de librerías matemáticas como `scipy.special`.*
     """)
 
-# Nueva pestaña de Contacto
 with tab5:
     st.markdown("<h5 style='font-size: 1.2em;'>Contacto</h5>", unsafe_allow_html=True)
     st.markdown("""
-    *Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann* 🔬
-    *smmiroer@gmail.com
-    *Profesor Adjunto
-    *Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
-    *Escuela de Ingeniería y Ciencias Aplicadas - Universidad Nacional de Villa Mercedes (EICA-UNViMe)
+    **Dra. Mg. Ing. Química Silvia Marcela Miro Erdmann** 🔬
+
+    * **Cargo:** Profesor Adjunto
+    * **Institución 1:** Facultad de Ingeniería y Ciencias Agropecuarias - Universidad Nacional de San Luis (FICA-UNSL)
+    * **Institución 2:** Escuela de Ingeniería - Universidad Nacional de Villa Mercedes (EI-UNVM)
     """)
